@@ -1,0 +1,67 @@
+import { StudySession, WordProgress } from '@/types';
+
+const STORAGE_KEYS = {
+  SESSIONS: 'vocab_sessions',
+  PROGRESS: 'vocab_progress',
+  CURRENT_SESSION: 'vocab_current_session',
+} as const;
+
+// 세션 관련
+export function saveSession(session: StudySession): void {
+  const sessions = getSessions();
+  const idx = sessions.findIndex((s) => s.id === session.id);
+  if (idx >= 0) {
+    sessions[idx] = session;
+  } else {
+    sessions.push(session);
+  }
+  localStorage.setItem(STORAGE_KEYS.SESSIONS, JSON.stringify(sessions));
+}
+
+export function getSessions(): StudySession[] {
+  if (typeof window === 'undefined') return [];
+  const data = localStorage.getItem(STORAGE_KEYS.SESSIONS);
+  return data ? JSON.parse(data) : [];
+}
+
+export function getCurrentSession(): StudySession | null {
+  if (typeof window === 'undefined') return null;
+  const data = localStorage.getItem(STORAGE_KEYS.CURRENT_SESSION);
+  return data ? JSON.parse(data) : null;
+}
+
+export function setCurrentSession(session: StudySession): void {
+  localStorage.setItem(STORAGE_KEYS.CURRENT_SESSION, JSON.stringify(session));
+}
+
+export function clearCurrentSession(): void {
+  localStorage.removeItem(STORAGE_KEYS.CURRENT_SESSION);
+}
+
+// 단어 진도 관련
+export function getWordProgress(word: string): WordProgress | null {
+  const all = getAllProgress();
+  return all.find((p) => p.word === word) || null;
+}
+
+export function getAllProgress(): WordProgress[] {
+  if (typeof window === 'undefined') return [];
+  const data = localStorage.getItem(STORAGE_KEYS.PROGRESS);
+  return data ? JSON.parse(data) : [];
+}
+
+export function updateWordProgress(progress: WordProgress): void {
+  const all = getAllProgress();
+  const idx = all.findIndex((p) => p.word === progress.word);
+  if (idx >= 0) {
+    all[idx] = progress;
+  } else {
+    all.push(progress);
+  }
+  localStorage.setItem(STORAGE_KEYS.PROGRESS, JSON.stringify(all));
+}
+
+// 유틸리티
+export function generateSessionId(): string {
+  return `session_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+}
