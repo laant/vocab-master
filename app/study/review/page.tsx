@@ -97,7 +97,7 @@ export default function ReviewPage() {
           <span className={`font-bold text-lg ${levelInfo.color}`}>{levelInfo.label}</span>
         </div>
         <p className="text-sm text-slate-600 mb-3">{levelInfo.description}</p>
-        <div className="flex gap-3 text-xs">
+        <div className="flex flex-wrap gap-2 sm:gap-3 text-xs">
           <span className="px-2 py-1 bg-white/70 rounded-full">
             <span className="text-red-500 font-bold">Hard</span> {counts.hard}개
           </span>

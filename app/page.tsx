@@ -88,7 +88,7 @@ export default function HomePage() {
             school
           </span>
         </div>
-        <h2 className="text-3xl font-bold mb-3">영단어 마스터</h2>
+        <h2 className="text-2xl sm:text-3xl font-bold mb-3">영단어 마스터</h2>
         <p className="text-slate-500 text-lg">
           5단계 학습법으로 영단어를 완벽하게 외워보세요
         </p>
@@ -96,26 +96,26 @@ export default function HomePage() {
 
       {/* 학습 통계 */}
       <div className="grid grid-cols-3 gap-4 mb-8">
-        <div className="bg-white rounded-xl p-5 shadow-sm border border-slate-200 text-center">
-          <div className="flex items-center justify-center w-10 h-10 rounded-full bg-blue-50 text-primary mx-auto mb-3">
+        <div className="bg-white rounded-xl p-3 sm:p-5 shadow-sm border border-slate-200 text-center">
+          <div className="flex items-center justify-center w-10 h-10 rounded-full bg-blue-50 text-primary mx-auto mb-2 sm:mb-3">
             <span className="material-symbols-outlined">dictionary</span>
           </div>
-          <p className="text-2xl font-bold">{stats.totalWords}</p>
-          <p className="text-xs text-slate-500 mt-1">학습한 단어</p>
+          <p className="text-xl sm:text-2xl font-bold">{stats.totalWords}</p>
+          <p className="text-[10px] sm:text-xs text-slate-500 mt-1">학습한 단어</p>
         </div>
-        <div className="bg-white rounded-xl p-5 shadow-sm border border-slate-200 text-center">
-          <div className="flex items-center justify-center w-10 h-10 rounded-full bg-green-50 text-green-500 mx-auto mb-3">
+        <div className="bg-white rounded-xl p-3 sm:p-5 shadow-sm border border-slate-200 text-center">
+          <div className="flex items-center justify-center w-10 h-10 rounded-full bg-green-50 text-green-500 mx-auto mb-2 sm:mb-3">
             <span className="material-symbols-outlined">task_alt</span>
           </div>
-          <p className="text-2xl font-bold">{stats.completedSessions}</p>
-          <p className="text-xs text-slate-500 mt-1">완료한 세션</p>
+          <p className="text-xl sm:text-2xl font-bold">{stats.completedSessions}</p>
+          <p className="text-[10px] sm:text-xs text-slate-500 mt-1">완료한 세션</p>
         </div>
-        <div className="bg-white rounded-xl p-5 shadow-sm border border-slate-200 text-center">
-          <div className="flex items-center justify-center w-10 h-10 rounded-full bg-amber-50 text-amber-500 mx-auto mb-3">
+        <div className="bg-white rounded-xl p-3 sm:p-5 shadow-sm border border-slate-200 text-center">
+          <div className="flex items-center justify-center w-10 h-10 rounded-full bg-amber-50 text-amber-500 mx-auto mb-2 sm:mb-3">
             <span className="material-symbols-outlined">percent</span>
           </div>
-          <p className="text-2xl font-bold">{stats.accuracy}<span className="text-sm font-medium text-slate-400">%</span></p>
-          <p className="text-xs text-slate-500 mt-1">정답률</p>
+          <p className="text-xl sm:text-2xl font-bold">{stats.accuracy}<span className="text-sm font-medium text-slate-400">%</span></p>
+          <p className="text-[10px] sm:text-xs text-slate-500 mt-1">정답률</p>
         </div>
       </div>
 
@@ -127,7 +127,7 @@ export default function HomePage() {
           {/* 일별 학습량 */}
           <div className="mb-6">
             <p className="text-sm font-medium text-slate-500 mb-2">일별 학습 단어</p>
-            <ResponsiveContainer width="100%" height={160}>
+            <ResponsiveContainer width="100%" height={140}>
               <BarChart data={dailyStats}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                 <XAxis dataKey="date" tick={{ fontSize: 11 }} stroke="#94a3b8" />
@@ -144,7 +144,7 @@ export default function HomePage() {
           {/* 정답률 추이 */}
           <div className="mb-6">
             <p className="text-sm font-medium text-slate-500 mb-2">정답률 추이</p>
-            <ResponsiveContainer width="100%" height={160}>
+            <ResponsiveContainer width="100%" height={140}>
               <LineChart data={dailyStats}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                 <XAxis dataKey="date" tick={{ fontSize: 11 }} stroke="#94a3b8" />
@@ -161,7 +161,7 @@ export default function HomePage() {
           {/* 누적 단어 */}
           <div>
             <p className="text-sm font-medium text-slate-500 mb-2">누적 학습 단어</p>
-            <ResponsiveContainer width="100%" height={160}>
+            <ResponsiveContainer width="100%" height={140}>
               <AreaChart data={dailyStats}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                 <XAxis dataKey="date" tick={{ fontSize: 11 }} stroke="#94a3b8" />

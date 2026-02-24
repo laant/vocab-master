@@ -12,6 +12,11 @@ body {
   font-family: var(--font-display);
 }
 
+/* iOS 입력 줌 방지 */
+input, select, textarea {
+  font-size: 16px;
+}
+
 @keyframes fadeIn {
   from { opacity: 0; transform: translateY(8px); }
   to { opacity: 1; transform: translateY(0); }

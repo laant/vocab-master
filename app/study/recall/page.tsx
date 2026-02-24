@@ -167,10 +167,10 @@ export default function RecallPage() {
       </div>
 
       {/* 메인 카드 */}
-      <div className="bg-white rounded-2xl shadow-lg border border-slate-200 p-8 md:p-12 flex flex-col items-center">
+      <div className="bg-white rounded-2xl shadow-lg border border-slate-200 p-5 sm:p-8 md:p-12 flex flex-col items-center">
         {/* 한글 뜻 */}
-        <div className="text-center mb-10">
-          <h1 className="text-4xl md:text-5xl font-bold mb-2">
+        <div className="text-center mb-8 sm:mb-10">
+          <h1 className="text-2xl sm:text-4xl md:text-5xl font-bold mb-2">
             {currentWord.korean || "?"}
           </h1>
           <p className="text-slate-400">빈칸의 알파벳을 클릭하세요</p>

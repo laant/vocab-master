@@ -22,10 +22,12 @@ export default function RootLayout({
           href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap"
           rel="stylesheet"
         />
+        <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
       </head>
-      <body className="bg-background min-h-screen text-slate-900 antialiased">
+      <body className="bg-background min-h-screen text-slate-900 antialiased pb-20 md:pb-0">
         <Header />
         <main className="flex-1">{children}</main>
+        <MobileTabBar />
       </body>
     </html>
   );
@@ -33,7 +35,7 @@ export default function RootLayout({
 
 function Header() {
   return (
-    <header className="flex items-center justify-between border-b border-slate-200 bg-white px-6 py-3 lg:px-40">
+    <header className="flex items-center justify-between border-b border-slate-200 bg-white px-4 sm:px-6 py-3 lg:px-40">
       <div className="flex items-center gap-3">
         <a href="/" className="flex items-center gap-3">
           <span className="material-symbols-outlined text-3xl text-primary">
@@ -63,5 +65,24 @@ function Header() {
         </a>
       </nav>
     </header>
+  );
+}
+
+function MobileTabBar() {
+  return (
+    <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 flex items-center justify-around py-2 md:hidden z-50">
+      <a href="/" className="flex flex-col items-center gap-0.5 px-3 py-1 text-slate-500 active:text-primary">
+        <span className="material-symbols-outlined text-2xl">home</span>
+        <span className="text-[10px] font-medium">홈</span>
+      </a>
+      <a href="/study/input" className="flex flex-col items-center gap-0.5 px-3 py-1 text-slate-500 active:text-primary">
+        <span className="material-symbols-outlined text-2xl">add_circle</span>
+        <span className="text-[10px] font-medium">새 학습</span>
+      </a>
+      <a href="/wrong-words" className="flex flex-col items-center gap-0.5 px-3 py-1 text-slate-500 active:text-primary">
+        <span className="material-symbols-outlined text-2xl">auto_stories</span>
+        <span className="text-[10px] font-medium">오답 노트</span>
+      </a>
+    </nav>
   );
 }

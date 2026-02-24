@@ -226,10 +226,10 @@ export default function MasteryPage() {
       </div>
 
       {/* 문제 카드 */}
-      <div className="bg-white rounded-2xl shadow-lg border border-slate-200 p-8 md:p-12 flex flex-col items-center">
+      <div className="bg-white rounded-2xl shadow-lg border border-slate-200 p-5 sm:p-8 md:p-12 flex flex-col items-center">
         <p className="text-slate-400 text-sm mb-4">이 뜻의 영단어를 입력하세요</p>
 
-        <h1 className="text-3xl md:text-4xl font-bold mb-2 text-primary">
+        <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold mb-2 text-primary">
           {currentWord.korean || currentWord.meanings[0]?.definitions[0]?.definition}
         </h1>
         <p className="text-slate-400 text-sm mb-8">{currentWord.phonetic}</p>
@@ -244,7 +244,7 @@ export default function MasteryPage() {
           }}
           placeholder="영단어를 입력하세요"
           disabled={answerState !== "idle"}
-          className="w-full max-w-sm px-6 py-4 rounded-xl border-2 border-slate-200 focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none text-center text-xl font-bold transition-all disabled:bg-slate-50"
+          className="w-full max-w-full sm:max-w-sm px-6 py-4 rounded-xl border-2 border-slate-200 focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none text-center text-xl font-bold transition-all disabled:bg-slate-50"
           autoFocus
         />
 

@@ -124,14 +124,14 @@ export default function ContextPage() {
       </div>
 
       {/* 문장 카드 */}
-      <div className="bg-white rounded-2xl shadow-lg border border-slate-200 p-8 md:p-12 mb-8">
+      <div className="bg-white rounded-2xl shadow-lg border border-slate-200 p-5 sm:p-8 md:p-12 mb-8">
         <p className="text-slate-400 text-sm mb-6 text-center">빈칸에 들어갈 단어는?</p>
         <p className="text-xl md:text-2xl font-medium text-center leading-relaxed">
           {q.sentence.split("______").map((part, i, arr) => (
             <span key={i}>
               {part}
               {i < arr.length - 1 && (
-                <span className={`inline-block min-w-[100px] border-b-2 mx-1 px-2 py-1 font-bold ${
+                <span className={`inline-block min-w-[80px] sm:min-w-[100px] border-b-2 mx-1 px-2 py-1 font-bold ${
                   answerState === "correct"
                     ? "border-green-400 text-green-600"
                     : answerState === "wrong"
@@ -147,7 +147,7 @@ export default function ContextPage() {
       </div>
 
       {/* 선택지 */}
-      <div className="grid grid-cols-2 gap-3 mb-8">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-8">
         {q.choices.map((choice) => {
           const isCorrect = choice === q.answer;
           let style = "border-slate-200 bg-white hover:border-primary";

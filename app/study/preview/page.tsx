@@ -88,7 +88,7 @@ export default function PreviewPage() {
       {/* 플래시카드 */}
       <div
         onClick={() => setFlipped(!flipped)}
-        className="bg-white rounded-2xl shadow-lg border border-slate-200 p-8 md:p-12 min-h-[400px] flex flex-col items-center pt-16 cursor-pointer select-none transition-all hover:shadow-xl relative"
+        className="bg-white rounded-2xl shadow-lg border border-slate-200 p-5 sm:p-8 md:p-12 min-h-[300px] sm:min-h-[400px] flex flex-col items-center pt-12 sm:pt-16 cursor-pointer select-none transition-all hover:shadow-xl relative"
       >
         {/* 오디오 버튼 */}
         {audioUrl && (
@@ -105,7 +105,7 @@ export default function PreviewPage() {
 
         {/* 단어 & 발음기호: 항상 같은 위치 */}
         <div className="text-center mb-4">
-          <h1 className="text-5xl md:text-6xl font-bold mb-4">{word.word}</h1>
+          <h1 className="text-3xl sm:text-5xl md:text-6xl font-bold mb-4">{word.word}</h1>
           <p className="text-slate-400 text-lg">{word.phonetic}</p>
         </div>
 

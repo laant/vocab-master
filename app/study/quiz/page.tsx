@@ -119,9 +119,9 @@ export default function QuizPage() {
       </div>
 
       {/* 문제 카드 */}
-      <div className="bg-white rounded-2xl shadow-lg border border-slate-200 p-8 md:p-12 text-center mb-8">
+      <div className="bg-white rounded-2xl shadow-lg border border-slate-200 p-5 sm:p-8 md:p-12 text-center mb-8">
         <p className="text-slate-400 text-sm mb-4">이 단어의 뜻은?</p>
-        <h1 className="text-5xl md:text-6xl font-bold mb-2">{currentWord.word}</h1>
+        <h1 className="text-3xl sm:text-5xl md:text-6xl font-bold mb-2">{currentWord.word}</h1>
         <p className="text-slate-400">{currentWord.phonetic}</p>
       </div>
 

@@ -179,7 +179,7 @@ export default function InputPage() {
                   value={word}
                   onChange={(e) => handleWordChange(i, e.target.value)}
                   placeholder={`영단어 ${i + 1}`}
-                  className="flex-1 px-4 py-3 rounded-lg border border-slate-200 focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-all text-sm"
+                  className="flex-1 px-4 py-3.5 rounded-lg border border-slate-200 focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-all text-sm"
                   onKeyDown={(e) => {
                     if (e.key === "Enter" && i < 9) {
                       const next = document.querySelector<HTMLInputElement>(

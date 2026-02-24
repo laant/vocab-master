@@ -109,7 +109,7 @@ export default function WrongWordsPage() {
           {items.map((item) => (
             <div
               key={item.progress.word}
-              className="bg-white rounded-xl p-5 shadow-sm border border-slate-200 flex items-center justify-between"
+              className="bg-white rounded-xl p-4 sm:p-5 shadow-sm border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
             >
               <div className="flex items-center gap-4">
                 <div className="flex items-center justify-center w-10 h-10 rounded-full bg-red-50 text-red-400">
