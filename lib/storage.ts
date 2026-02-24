@@ -5,6 +5,7 @@ const STORAGE_KEYS = {
   PROGRESS: 'vocab_progress',
   CURRENT_SESSION: 'vocab_current_session',
   REVIEW_LEVEL: 'vocab_review_level',
+  GAME_PROFILE: 'vocab_game_profile',
 } as const;
 
 // 세션 관련

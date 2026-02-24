@@ -35,6 +35,22 @@ export interface WordProgress {
   mastered: boolean;
 }
 
+// 게이미피케이션
+export interface GameProfile {
+  xp: number;
+  level: number;
+  streak: number;
+  lastStudyDate: string; // YYYY-MM-DD
+  badges: string[];
+}
+
+export interface Badge {
+  id: string;
+  name: string;
+  description: string;
+  icon: string;
+}
+
 // 복습 레벨
 export type ReviewLevel = 'hard' | 'medium' | 'easy';
 

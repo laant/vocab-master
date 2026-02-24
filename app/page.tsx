@@ -7,7 +7,8 @@ import { getSessions, getAllProgress, getReviewLevel, saveSession, setCurrentSes
 import { getGroupedWords } from "@/lib/review";
 import { getDueWords } from "@/lib/spaced-repetition";
 import { getDailyStats, DailyStat } from "@/lib/stats";
-import { StudySession, WordProgress, WordData, ReviewLevel, STEP_INFO } from "@/types";
+import { getGameProfile, calcLevel, getLevelTitle, BADGES } from "@/lib/gamification";
+import { StudySession, WordProgress, WordData, GameProfile, ReviewLevel, STEP_INFO } from "@/types";
 import { BarChart, Bar, LineChart, Line, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 
 interface Stats {
@@ -45,6 +46,7 @@ export default function HomePage() {
   const [reviewAvailable, setReviewAvailable] = useState(false);
   const [dueWords, setDueWords] = useState<{ wordData: WordData; progress: WordProgress }[]>([]);
   const [dailyStats, setDailyStats] = useState<DailyStat[]>([]);
+  const [gameProfile, setGameProfile] = useState<GameProfile | null>(null);
 
   useEffect(() => {
     const allSessions = getSessions();
@@ -75,6 +77,9 @@ export default function HomePage() {
 
     // 일별 통계
     setDailyStats(getDailyStats(allSessions));
+
+    // 게이미피케이션 프로필
+    setGameProfile(getGameProfile());
   }, []);
 
   const stats = calcStats(sessions);
@@ -93,6 +98,61 @@ export default function HomePage() {
           5단계 학습법으로 영단어를 완벽하게 외워보세요
         </p>
       </div>
+
+      {/* 레벨 & 스트릭 */}
+      {gameProfile && gameProfile.xp > 0 && (() => {
+        const { level, currentXp, requiredXp } = calcLevel(gameProfile.xp);
+        const title = getLevelTitle(level);
+        return (
+          <div className="bg-white rounded-xl p-4 sm:p-5 shadow-sm border border-slate-200 mb-4">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-3">
+                <div className="flex items-center justify-center w-10 h-10 rounded-full bg-violet-100 text-violet-600">
+                  <span className="font-bold text-sm">Lv.{level}</span>
+                </div>
+                <div>
+                  <p className="font-bold text-sm">{title}</p>
+                  <p className="text-xs text-slate-400">{currentXp} / {requiredXp} XP</p>
+                </div>
+              </div>
+              {gameProfile.streak > 0 && (
+                <div className="flex items-center gap-1.5 bg-orange-50 px-3 py-1.5 rounded-full border border-orange-200">
+                  <span className="material-symbols-outlined text-orange-500 text-lg" style={{ fontVariationSettings: "'FILL' 1" }}>
+                    local_fire_department
+                  </span>
+                  <span className="font-bold text-sm text-orange-600">{gameProfile.streak}일</span>
+                </div>
+              )}
+            </div>
+            <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
+              <div
+                className="bg-violet-500 h-full rounded-full transition-all"
+                style={{ width: `${(currentXp / requiredXp) * 100}%` }}
+              />
+            </div>
+            {/* 배지 목록 */}
+            {gameProfile.badges.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 mt-3">
+                {gameProfile.badges.map((badgeId) => {
+                  const badge = BADGES.find((b) => b.id === badgeId);
+                  if (!badge) return null;
+                  return (
+                    <span
+                      key={badgeId}
+                      title={`${badge.name}: ${badge.description}`}
+                      className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-emerald-50 border border-emerald-200"
+                    >
+                      <span className="material-symbols-outlined text-emerald-500 text-base" style={{ fontVariationSettings: "'FILL' 1" }}>
+                        {badge.icon}
+                      </span>
+                    </span>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        );
+      })()}
 
       {/* 학습 통계 */}
       <div className="grid grid-cols-3 gap-4 mb-8">

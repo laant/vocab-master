@@ -5,7 +5,8 @@ import { useRouter } from "next/navigation";
 import { getCurrentSession, saveSession, clearCurrentSession, getWordProgress, updateWordProgress, getReviewLevel, setReviewLevel } from "@/lib/storage";
 import { adjustReviewLevel } from "@/lib/review";
 import { calcNextReview } from "@/lib/spaced-repetition";
-import { StudySession, WordData } from "@/types";
+import { processSessionComplete } from "@/lib/gamification";
+import { StudySession, WordData, Badge } from "@/types";
 
 export default function MasteryPage() {
   const router = useRouter();
@@ -18,6 +19,13 @@ export default function MasteryPage() {
   const [masteredInStep5, setMasteredInStep5] = useState<string[]>([]);
   const [completed, setCompleted] = useState(false);
   const [isReviewSession, setIsReviewSession] = useState(false);
+  const [gameResult, setGameResult] = useState<{
+    xpGained: number;
+    levelUp: boolean;
+    newLevel: number;
+    newBadges: Badge[];
+    streak: number;
+  } | null>(null);
 
   // 세션 완료 시 단어별 진도 저장
   // masteredWords: Step 5에서 맞힌 단어 목록
@@ -69,6 +77,9 @@ export default function MasteryPage() {
         const newLevel = adjustReviewLevel(getReviewLevel(), 100);
         setReviewLevel(newLevel);
       }
+      // 게이미피케이션
+      const gr = processSessionComplete(updated, 100);
+      setGameResult(gr);
     } else {
       setWrongWordData(wrongs);
     }
@@ -102,16 +113,22 @@ export default function MasteryPage() {
       saveSession(updated);
       clearCurrentSession();
       saveWordProgressForSession(updated, masteredInStep5);
+      // 정답률 계산
+      const totalWords = session.words.length;
+      const wrongInSteps = session.wrongWords.length;
+      const recoveredInStep5 = masteredInStep5.length;
+      const correctOverall = totalWords - wrongInSteps + recoveredInStep5;
+      const accuracy = Math.round((correctOverall / totalWords) * 100);
+
       // 복습 세션이면 레벨 조정
       if (isReviewSession) {
-        const totalWords = session.words.length;
-        const wrongInSteps = session.wrongWords.length;
-        const recoveredInStep5 = masteredInStep5.length;
-        const correctOverall = totalWords - wrongInSteps + recoveredInStep5;
-        const accuracy = Math.round((correctOverall / totalWords) * 100);
         const newLevel = adjustReviewLevel(getReviewLevel(), accuracy);
         setReviewLevel(newLevel);
       }
+
+      // 게이미피케이션
+      const gr = processSessionComplete(updated, accuracy);
+      setGameResult(gr);
     }
   };
 
@@ -148,6 +165,64 @@ export default function MasteryPage() {
               </p>
             </div>
           </div>
+
+          {/* 게이미피케이션 결과 */}
+          {gameResult && (
+            <div className="w-full mb-8 space-y-3">
+              {/* XP 획득 */}
+              <div className="bg-gradient-to-r from-violet-50 to-purple-50 rounded-xl p-5 border border-violet-200">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <span className="material-symbols-outlined text-violet-500 text-2xl">bolt</span>
+                    <div>
+                      <p className="font-bold text-violet-700">+{gameResult.xpGained} XP</p>
+                      <p className="text-xs text-violet-400">
+                        Lv.{gameResult.newLevel}
+                        {gameResult.streak > 1 && ` | ${gameResult.streak}일 연속`}
+                      </p>
+                    </div>
+                  </div>
+                  {gameResult.streak > 0 && (
+                    <div className="flex items-center gap-1 text-orange-500">
+                      <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1" }}>local_fire_department</span>
+                      <span className="font-bold">{gameResult.streak}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* 레벨업 */}
+              {gameResult.levelUp && (
+                <div className="bg-gradient-to-r from-amber-50 to-yellow-50 rounded-xl p-5 border border-amber-200 text-center animate-[fadeIn_0.5s_ease-out]">
+                  <span className="material-symbols-outlined text-amber-500 text-4xl mb-2" style={{ fontVariationSettings: "'FILL' 1" }}>
+                    upgrade
+                  </span>
+                  <p className="font-extrabold text-lg text-amber-700">Level Up!</p>
+                  <p className="text-amber-500 text-sm">레벨 {gameResult.newLevel} 달성</p>
+                </div>
+              )}
+
+              {/* 새 배지 */}
+              {gameResult.newBadges.length > 0 && (
+                <div className="bg-gradient-to-r from-emerald-50 to-green-50 rounded-xl p-5 border border-emerald-200 animate-[fadeIn_0.5s_ease-out]">
+                  <p className="font-bold text-emerald-700 mb-3">새 배지 획득!</p>
+                  <div className="flex flex-wrap gap-3">
+                    {gameResult.newBadges.map((badge) => (
+                      <div key={badge.id} className="flex items-center gap-2 bg-white rounded-lg px-3 py-2 border border-emerald-200">
+                        <span className="material-symbols-outlined text-emerald-500" style={{ fontVariationSettings: "'FILL' 1" }}>
+                          {badge.icon}
+                        </span>
+                        <div>
+                          <p className="text-sm font-bold">{badge.name}</p>
+                          <p className="text-[10px] text-slate-400">{badge.description}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* 틀린 단어 목록 (Step 5에서 맞힌 건 제외) */}
           {(() => {
