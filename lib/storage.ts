@@ -1,4 +1,5 @@
 import { StudySession, WordProgress, ReviewLevel } from '@/types';
+import { debouncedSync } from './sync';
 
 const STORAGE_KEYS = {
   SESSIONS: 'vocab_sessions',
@@ -18,6 +19,7 @@ export function saveSession(session: StudySession): void {
     sessions.push(session);
   }
   localStorage.setItem(STORAGE_KEYS.SESSIONS, JSON.stringify(sessions));
+  debouncedSync();
 }
 
 export function getSessions(): StudySession[] {
@@ -61,6 +63,7 @@ export function updateWordProgress(progress: WordProgress): void {
     all.push(progress);
   }
   localStorage.setItem(STORAGE_KEYS.PROGRESS, JSON.stringify(all));
+  debouncedSync();
 }
 
 // 복습 레벨 관련
@@ -72,6 +75,7 @@ export function getReviewLevel(): ReviewLevel {
 
 export function setReviewLevel(level: ReviewLevel): void {
   localStorage.setItem(STORAGE_KEYS.REVIEW_LEVEL, level);
+  debouncedSync();
 }
 
 // 유틸리티

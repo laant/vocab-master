@@ -1,5 +1,6 @@
 import { GameProfile, Badge, StudySession } from '@/types';
 import { getSessions } from './storage';
+import { debouncedSync } from './sync';
 
 const STORAGE_KEY = 'vocab_game_profile';
 
@@ -41,6 +42,7 @@ export function getGameProfile(): GameProfile {
 
 export function saveGameProfile(profile: GameProfile): void {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(profile));
+  debouncedSync();
 }
 
 // XP → 레벨 계산

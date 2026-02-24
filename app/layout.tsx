@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import AuthButton from "@/components/AuthButton";
 
 export const metadata: Metadata = {
   title: "VocabMaster - 영단어 학습",
@@ -63,6 +64,7 @@ function Header() {
         >
           오답 노트
         </a>
+        <AuthButton />
       </nav>
     </header>
   );
@@ -82,6 +84,10 @@ function MobileTabBar() {
       <a href="/wrong-words" className="flex flex-col items-center gap-0.5 px-3 py-1 text-slate-500 active:text-primary">
         <span className="material-symbols-outlined text-2xl">auto_stories</span>
         <span className="text-[10px] font-medium">오답 노트</span>
+      </a>
+      <a href="/auth" className="flex flex-col items-center gap-0.5 px-3 py-1 text-slate-500 active:text-primary">
+        <span className="material-symbols-outlined text-2xl">person</span>
+        <span className="text-[10px] font-medium">계정</span>
       </a>
     </nav>
   );
