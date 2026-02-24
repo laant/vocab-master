@@ -17,6 +17,7 @@ export interface WordData {
 // 학습 세션
 export interface StudySession {
   id: string;
+  name?: string; // 그룹명 (미입력 시 단어 요약으로 표시)
   words: WordData[];
   currentStep: number; // 0~5
   wrongWords: string[]; // 틀린 단어 목록
@@ -33,6 +34,9 @@ export interface WordProgress {
   nextReview?: string; // 간격 반복용
   mastered: boolean;
 }
+
+// 복습 레벨
+export type ReviewLevel = 'hard' | 'medium' | 'easy';
 
 // 학습 단계 정보
 export type StudyStep = 0 | 1 | 2 | 3 | 4 | 5;

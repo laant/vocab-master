@@ -2,7 +2,9 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { getCurrentSession, saveSession, clearCurrentSession } from "@/lib/storage";
+import { getCurrentSession, saveSession, clearCurrentSession, getWordProgress, updateWordProgress, getReviewLevel, setReviewLevel } from "@/lib/storage";
+import { adjustReviewLevel } from "@/lib/review";
+import { calcNextReview } from "@/lib/spaced-repetition";
 import { StudySession, WordData } from "@/types";
 
 export default function MasteryPage() {
@@ -13,7 +15,33 @@ export default function MasteryPage() {
   const [userInput, setUserInput] = useState("");
   const [answerState, setAnswerState] = useState<"idle" | "correct" | "wrong">("idle");
   const [masteredCount, setMasteredCount] = useState(0);
+  const [masteredInStep5, setMasteredInStep5] = useState<string[]>([]);
   const [completed, setCompleted] = useState(false);
+  const [isReviewSession, setIsReviewSession] = useState(false);
+
+  // 세션 완료 시 단어별 진도 저장
+  // masteredWords: Step 5에서 맞힌 단어 목록
+  const saveWordProgressForSession = useCallback((s: StudySession, masteredWords: string[]) => {
+    for (const word of s.words) {
+      const existing = getWordProgress(word.word);
+      const wasWrongInSteps = s.wrongWords.includes(word.word);
+      const recoveredInStep5 = masteredWords.includes(word.word);
+      // Step 2~4에서 틀리지 않았거나, Step 5에서 맞혔으면 정답 처리
+      const isCorrectOverall = !wasWrongInSteps || recoveredInStep5;
+      const newCorrectCount = (existing?.correctCount || 0) + (isCorrectOverall ? 1 : 0);
+      updateWordProgress({
+        word: word.word,
+        correctCount: newCorrectCount,
+        wrongCount: (existing?.wrongCount || 0) + (isCorrectOverall ? 0 : 1),
+        wrongAtSteps: isCorrectOverall
+          ? (existing?.wrongAtSteps || [])
+          : [...(existing?.wrongAtSteps || []), s.currentStep],
+        lastStudied: new Date().toISOString(),
+        nextReview: calcNextReview(newCorrectCount, isCorrectOverall),
+        mastered: isCorrectOverall,
+      });
+    }
+  }, []);
 
   useEffect(() => {
     const s = getCurrentSession();
@@ -22,17 +50,29 @@ export default function MasteryPage() {
       return;
     }
     setSession(s);
+    const isReview = !!(s.name && s.name.startsWith("복습"));
+    setIsReviewSession(isReview);
 
     // 틀린 단어들 찾기
     const wrongs = s.words.filter((w) => s.wrongWords.includes(w.word));
     if (wrongs.length === 0) {
-      // 틀린 단어가 없으면 바로 완료
+      // 틀린 단어가 없으면 바로 완료 (모든 단어 정답)
       setCompleted(true);
       setMasteredCount(s.words.length);
+      // 진도 저장 — 오답 없으므로 모든 단어가 mastered
+      const updated = { ...s, currentStep: 5 };
+      saveSession(updated);
+      clearCurrentSession();
+      saveWordProgressForSession(updated, s.words.map((w) => w.word));
+      // 복습 세션이면 레벨 조정 (정답률 100%)
+      if (isReview) {
+        const newLevel = adjustReviewLevel(getReviewLevel(), 100);
+        setReviewLevel(newLevel);
+      }
     } else {
       setWrongWordData(wrongs);
     }
-  }, [router]);
+  }, [router, saveWordProgressForSession]);
 
   const handleCheck = useCallback(() => {
     if (!wrongWordData[currentIndex]) return;
@@ -41,6 +81,7 @@ export default function MasteryPage() {
     if (userInput.trim().toLowerCase() === correct) {
       setAnswerState("correct");
       setMasteredCount((prev) => prev + 1);
+      setMasteredInStep5((prev) => [...prev, wrongWordData[currentIndex].word]);
     } else {
       setAnswerState("wrong");
     }
@@ -56,10 +97,21 @@ export default function MasteryPage() {
       setCurrentIndex(currentIndex + 1);
     } else {
       setCompleted(true);
-      // 세션 저장
+      // 세션 저장 + 단어별 진도 저장
       const updated = { ...session, currentStep: 5 };
       saveSession(updated);
       clearCurrentSession();
+      saveWordProgressForSession(updated, masteredInStep5);
+      // 복습 세션이면 레벨 조정
+      if (isReviewSession) {
+        const totalWords = session.words.length;
+        const wrongInSteps = session.wrongWords.length;
+        const recoveredInStep5 = masteredInStep5.length;
+        const correctOverall = totalWords - wrongInSteps + recoveredInStep5;
+        const accuracy = Math.round((correctOverall / totalWords) * 100);
+        const newLevel = adjustReviewLevel(getReviewLevel(), accuracy);
+        setReviewLevel(newLevel);
+      }
     }
   };
 
@@ -97,25 +149,37 @@ export default function MasteryPage() {
             </div>
           </div>
 
-          {/* 틀린 단어 목록 */}
-          {session.wrongWords.length > 0 && (
-            <div className="bg-primary/5 rounded-xl p-6 border border-primary/20 w-full mb-8">
-              <h3 className="font-bold mb-2">복습이 필요한 단어</h3>
-              <div className="flex flex-wrap gap-2">
-                {session.wrongWords.map((word) => (
-                  <span
-                    key={word}
-                    className="px-3 py-1 bg-white rounded-full text-sm font-medium text-primary border border-primary/20"
-                  >
-                    {word}
-                  </span>
-                ))}
+          {/* 틀린 단어 목록 (Step 5에서 맞힌 건 제외) */}
+          {(() => {
+            const stillWrong = session.wrongWords.filter((w) => !masteredInStep5.includes(w));
+            return stillWrong.length > 0 ? (
+              <div className="bg-primary/5 rounded-xl p-6 border border-primary/20 w-full mb-8">
+                <h3 className="font-bold mb-2">오답 단어</h3>
+                <div className="flex flex-wrap gap-2">
+                  {stillWrong.map((word) => (
+                    <span
+                      key={word}
+                      className="px-3 py-1 bg-white rounded-full text-sm font-medium text-primary border border-primary/20"
+                    >
+                      {word}
+                    </span>
+                  ))}
+                </div>
               </div>
-            </div>
-          )}
+            ) : null;
+          })()}
 
           {/* 액션 버튼 */}
           <div className="flex flex-col gap-3 w-full">
+            {isReviewSession && (
+              <button
+                onClick={() => router.push("/study/review")}
+                className="w-full py-4 rounded-xl bg-amber-500 text-white font-bold text-lg shadow-lg shadow-amber-500/20 hover:opacity-90 transition-opacity flex items-center justify-center gap-2"
+              >
+                다른 단어 복습 계속하기
+                <span className="material-symbols-outlined">replay</span>
+              </button>
+            )}
             <button
               onClick={() => router.push("/study/input")}
               className="w-full py-4 rounded-xl bg-primary text-white font-bold text-lg shadow-lg shadow-primary/20 hover:opacity-90 transition-opacity flex items-center justify-center gap-2"

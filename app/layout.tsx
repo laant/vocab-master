@@ -55,6 +55,12 @@ function Header() {
         >
           새 학습
         </a>
+        <a
+          className="text-sm font-medium text-slate-600 hover:text-primary transition-colors"
+          href="/wrong-words"
+        >
+          오답 노트
+        </a>
       </nav>
     </header>
   );

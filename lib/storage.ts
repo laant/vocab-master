@@ -1,9 +1,10 @@
-import { StudySession, WordProgress } from '@/types';
+import { StudySession, WordProgress, ReviewLevel } from '@/types';
 
 const STORAGE_KEYS = {
   SESSIONS: 'vocab_sessions',
   PROGRESS: 'vocab_progress',
   CURRENT_SESSION: 'vocab_current_session',
+  REVIEW_LEVEL: 'vocab_review_level',
 } as const;
 
 // 세션 관련
@@ -59,6 +60,17 @@ export function updateWordProgress(progress: WordProgress): void {
     all.push(progress);
   }
   localStorage.setItem(STORAGE_KEYS.PROGRESS, JSON.stringify(all));
+}
+
+// 복습 레벨 관련
+export function getReviewLevel(): ReviewLevel {
+  if (typeof window === 'undefined') return 'hard';
+  const data = localStorage.getItem(STORAGE_KEYS.REVIEW_LEVEL);
+  return (data as ReviewLevel) || 'hard';
+}
+
+export function setReviewLevel(level: ReviewLevel): void {
+  localStorage.setItem(STORAGE_KEYS.REVIEW_LEVEL, level);
 }
 
 // 유틸리티

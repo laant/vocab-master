@@ -1,9 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { fetchMultipleWords, getFirstDefinition } from "@/lib/dictionary-api";
-import { saveSession, setCurrentSession, generateSessionId } from "@/lib/storage";
+import { fetchMultipleWords, translateMultipleWords, getFirstDefinition } from "@/lib/dictionary-api";
+import { saveSession, setCurrentSession, generateSessionId, getAllProgress } from "@/lib/storage";
 import { WordData } from "@/types";
 
 export default function InputPage() {
@@ -13,6 +13,33 @@ export default function InputPage() {
   const [fetchedWords, setFetchedWords] = useState<Map<string, WordData | null> | null>(null);
   const [koreanMeanings, setKoreanMeanings] = useState<Map<string, string>>(new Map());
   const [step, setStep] = useState<"input" | "confirm">("input");
+  const [groupName, setGroupName] = useState("");
+  const [reviewWords, setReviewWords] = useState<string[]>([]);
+
+  // 이전 오답 단어 로드
+  useEffect(() => {
+    const progress = getAllProgress();
+    const unmastered = progress
+      .filter((p) => !p.mastered && p.wrongCount > 0)
+      .sort((a, b) => b.wrongCount - a.wrongCount)
+      .map((p) => p.word);
+    setReviewWords(unmastered);
+  }, []);
+
+  const handleAddReviewWords = () => {
+    const next = [...words];
+    let idx = 0;
+    for (const rw of reviewWords) {
+      // 이미 입력된 단어는 건너뛰기
+      if (next.some((w) => w.trim().toLowerCase() === rw.toLowerCase())) continue;
+      // 빈 칸 찾기
+      while (idx < 10 && next[idx].trim().length > 0) idx++;
+      if (idx >= 10) break;
+      next[idx] = rw;
+      idx++;
+    }
+    setWords(next);
+  };
 
   const validWords = words.filter((w) => w.trim().length > 0);
 
@@ -22,13 +49,22 @@ export default function InputPage() {
     setWords(next);
   };
 
-  // 단어 데이터 수집
+  // 단어 데이터 수집 + 한글 번역
   const handleFetch = async () => {
     if (validWords.length === 0) return;
     setLoading(true);
     try {
-      const results = await fetchMultipleWords(validWords);
+      const [results, translations] = await Promise.all([
+        fetchMultipleWords(validWords),
+        translateMultipleWords(validWords),
+      ]);
       setFetchedWords(results);
+      // 번역 결과를 한글 뜻 초기값으로 세팅
+      const meanings = new Map<string, string>();
+      translations.forEach((translated, word) => {
+        if (translated) meanings.set(word, translated);
+      });
+      setKoreanMeanings(meanings);
       setStep("confirm");
     } catch {
       alert("단어 데이터를 가져오는데 실패했습니다. 다시 시도해주세요.");
@@ -67,6 +103,7 @@ export default function InputPage() {
 
     const session = {
       id: generateSessionId(),
+      name: groupName.trim() || undefined,
       words: wordDataList,
       currentStep: 1,
       wrongWords: [],
@@ -94,7 +131,43 @@ export default function InputPage() {
           </p>
         </div>
 
+        {/* 이전 오답 단어 포함 배너 */}
+        {reviewWords.length > 0 && (
+          <div className="bg-red-50 rounded-xl p-4 border border-red-200 mb-4 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <span className="material-symbols-outlined text-red-400">auto_stories</span>
+              <div>
+                <p className="text-sm font-bold text-slate-700">
+                  복습 단어 {reviewWords.length}개
+                </p>
+                <p className="text-xs text-slate-500">
+                  {reviewWords.slice(0, 3).join(", ")}
+                  {reviewWords.length > 3 && ` 외 ${reviewWords.length - 3}개`}
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={handleAddReviewWords}
+              className="px-4 py-2 rounded-lg bg-red-400 text-white text-sm font-bold hover:bg-red-500 transition-colors"
+            >
+              추가
+            </button>
+          </div>
+        )}
+
         <div className="bg-white rounded-xl p-6 shadow-sm border border-slate-200">
+          {/* 그룹명 입력 */}
+          <div className="mb-5 pb-5 border-b border-slate-100">
+            <label className="text-sm font-medium text-slate-500 mb-1.5 block">그룹명 (선택)</label>
+            <input
+              type="text"
+              value={groupName}
+              onChange={(e) => setGroupName(e.target.value)}
+              placeholder="예: 중2 영어 3과, TOEIC Day1"
+              className="w-full px-4 py-3 rounded-lg border border-slate-200 focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-all text-sm"
+            />
+          </div>
+
           <div className="space-y-3">
             {words.map((word, i) => (
               <div key={i} className="flex items-center gap-3">

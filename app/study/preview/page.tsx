@@ -21,6 +21,17 @@ export default function PreviewPage() {
     setSession(s);
   }, [router]);
 
+  // 카드가 바뀔 때마다 발음 자동 재생
+  useEffect(() => {
+    if (!session) return;
+    const word = session.words[currentIndex];
+    const url = getAudioUrl(word);
+    if (url) {
+      const audio = new Audio(url);
+      audio.play().catch(() => {});
+    }
+  }, [session, currentIndex]);
+
   if (!session) return null;
 
   const word = session.words[currentIndex];
@@ -77,7 +88,7 @@ export default function PreviewPage() {
       {/* 플래시카드 */}
       <div
         onClick={() => setFlipped(!flipped)}
-        className="bg-white rounded-2xl shadow-lg border border-slate-200 p-8 md:p-12 min-h-[400px] flex flex-col items-center justify-center cursor-pointer select-none transition-all hover:shadow-xl relative"
+        className="bg-white rounded-2xl shadow-lg border border-slate-200 p-8 md:p-12 min-h-[400px] flex flex-col items-center pt-16 cursor-pointer select-none transition-all hover:shadow-xl relative"
       >
         {/* 오디오 버튼 */}
         {audioUrl && (
@@ -92,26 +103,24 @@ export default function PreviewPage() {
           </button>
         )}
 
-        {!flipped ? (
-          // 앞면: 영단어
-          <div className="text-center">
-            <h1 className="text-5xl md:text-6xl font-bold mb-4">{word.word}</h1>
-            <p className="text-slate-400 text-lg">{word.phonetic}</p>
-            <p className="text-slate-300 text-sm mt-8">탭해서 뜻 보기</p>
-          </div>
-        ) : (
-          // 뒷면: 뜻, 예문
-          <div className="text-center w-full">
-            <h1 className="text-4xl md:text-5xl font-bold mb-2">{word.word}</h1>
-            <p className="text-slate-400 mb-6">{word.phonetic}</p>
+        {/* 단어 & 발음기호: 항상 같은 위치 */}
+        <div className="text-center mb-4">
+          <h1 className="text-5xl md:text-6xl font-bold mb-4">{word.word}</h1>
+          <p className="text-slate-400 text-lg">{word.phonetic}</p>
+        </div>
 
+        {!flipped ? (
+          <p className="text-slate-300 text-sm mt-8">탭해서 뜻 보기</p>
+        ) : (
+          // 아래로 뜻/예문이 펼쳐짐
+          <div className="w-full mt-6 space-y-4 animate-[fadeIn_0.3s_ease-out]">
             {word.korean && (
-              <div className="bg-primary/5 rounded-xl p-4 mb-4">
+              <div className="bg-primary/5 rounded-xl p-4 text-center">
                 <p className="text-2xl font-bold text-primary">{word.korean}</p>
               </div>
             )}
 
-            <div className="bg-slate-50 rounded-xl p-4 mb-4 text-left">
+            <div className="bg-slate-50 rounded-xl p-4 text-left">
               <p className="text-sm text-slate-500 font-medium mb-1">
                 {word.meanings[0]?.partOfSpeech}
               </p>

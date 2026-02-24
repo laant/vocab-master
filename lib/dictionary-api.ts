@@ -74,3 +74,30 @@ export function getFirstExample(word: WordData): string | null {
   }
   return null;
 }
+
+// MyMemory API로 영어 → 한국어 번역
+export async function translateToKorean(word: string): Promise<string> {
+  try {
+    const res = await fetch(
+      `https://api.mymemory.translated.net/get?q=${encodeURIComponent(word)}&langpair=en|ko`
+    );
+    if (!res.ok) return '';
+    const data = await res.json();
+    return data.responseData?.translatedText || '';
+  } catch {
+    return '';
+  }
+}
+
+// 여러 단어를 한번에 번역
+export async function translateMultipleWords(
+  words: string[]
+): Promise<Map<string, string>> {
+  const results = new Map<string, string>();
+  const promises = words.map(async (word) => {
+    const translated = await translateToKorean(word);
+    results.set(word.trim().toLowerCase(), translated);
+  });
+  await Promise.all(promises);
+  return results;
+}
