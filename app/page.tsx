@@ -6,7 +6,9 @@ import { useRouter } from "next/navigation";
 import { getSessions, getAllProgress, getReviewLevel, saveSession, setCurrentSession, generateSessionId } from "@/lib/storage";
 import { getGroupedWords } from "@/lib/review";
 import { getDueWords } from "@/lib/spaced-repetition";
+import { getDailyStats, DailyStat } from "@/lib/stats";
 import { StudySession, WordProgress, WordData, ReviewLevel, STEP_INFO } from "@/types";
+import { BarChart, Bar, LineChart, Line, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 
 interface Stats {
   totalWords: number;
@@ -42,6 +44,7 @@ export default function HomePage() {
   const [reviewLevel, setReviewLevel] = useState<ReviewLevel>("hard");
   const [reviewAvailable, setReviewAvailable] = useState(false);
   const [dueWords, setDueWords] = useState<{ wordData: WordData; progress: WordProgress }[]>([]);
+  const [dailyStats, setDailyStats] = useState<DailyStat[]>([]);
 
   useEffect(() => {
     const allSessions = getSessions();
@@ -69,6 +72,9 @@ export default function HomePage() {
 
     // 오늘 복습할 단어 (간격 반복)
     setDueWords(getDueWords());
+
+    // 일별 통계
+    setDailyStats(getDailyStats(allSessions));
   }, []);
 
   const stats = calcStats(sessions);
@@ -112,6 +118,64 @@ export default function HomePage() {
           <p className="text-xs text-slate-500 mt-1">정답률</p>
         </div>
       </div>
+
+      {/* 학습 추이 차트 */}
+      {dailyStats.length >= 2 && (
+        <div className="bg-white rounded-xl p-6 shadow-sm border border-slate-200 mb-8">
+          <h3 className="font-bold text-lg mb-6">학습 추이</h3>
+
+          {/* 일별 학습량 */}
+          <div className="mb-6">
+            <p className="text-sm font-medium text-slate-500 mb-2">일별 학습 단어</p>
+            <ResponsiveContainer width="100%" height={160}>
+              <BarChart data={dailyStats}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                <XAxis dataKey="date" tick={{ fontSize: 11 }} stroke="#94a3b8" />
+                <YAxis tick={{ fontSize: 11 }} stroke="#94a3b8" width={30} />
+                <Tooltip
+                  contentStyle={{ borderRadius: 8, fontSize: 13, border: "1px solid #e2e8f0" }}
+                  formatter={(value) => [`${value}개`, "단어"]}
+                />
+                <Bar dataKey="words" fill="#3b82f6" radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+
+          {/* 정답률 추이 */}
+          <div className="mb-6">
+            <p className="text-sm font-medium text-slate-500 mb-2">정답률 추이</p>
+            <ResponsiveContainer width="100%" height={160}>
+              <LineChart data={dailyStats}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                <XAxis dataKey="date" tick={{ fontSize: 11 }} stroke="#94a3b8" />
+                <YAxis tick={{ fontSize: 11 }} stroke="#94a3b8" width={30} domain={[0, 100]} />
+                <Tooltip
+                  contentStyle={{ borderRadius: 8, fontSize: 13, border: "1px solid #e2e8f0" }}
+                  formatter={(value) => [`${value}%`, "정답률"]}
+                />
+                <Line type="monotone" dataKey="accuracy" stroke="#22c55e" strokeWidth={2} dot={{ r: 4, fill: "#22c55e" }} />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+
+          {/* 누적 단어 */}
+          <div>
+            <p className="text-sm font-medium text-slate-500 mb-2">누적 학습 단어</p>
+            <ResponsiveContainer width="100%" height={160}>
+              <AreaChart data={dailyStats}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                <XAxis dataKey="date" tick={{ fontSize: 11 }} stroke="#94a3b8" />
+                <YAxis tick={{ fontSize: 11 }} stroke="#94a3b8" width={30} />
+                <Tooltip
+                  contentStyle={{ borderRadius: 8, fontSize: 13, border: "1px solid #e2e8f0" }}
+                  formatter={(value) => [`${value}개`, "누적"]}
+                />
+                <Area type="monotone" dataKey="cumulative" stroke="#8b5cf6" fill="#8b5cf6" fillOpacity={0.15} strokeWidth={2} />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      )}
 
       {/* 오늘의 복습 (간격 반복) */}
       {dueWords.length > 0 && (
