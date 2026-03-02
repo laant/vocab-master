@@ -1,10 +1,27 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import AuthButton from "@/components/AuthButton";
+
+export const viewport: Viewport = {
+  themeColor: "#137fec",
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+};
 
 export const metadata: Metadata = {
   title: "VocabMaster - 영단어 학습",
   description: "5단계 영단어 마스터 학습 플랫폼",
+  manifest: "/manifest.json",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "VocabMaster",
+  },
+  icons: {
+    icon: "/icons/icon-192x192.png",
+    apple: "/icons/apple-touch-icon.png",
+  },
 };
 
 export default function RootLayout({
@@ -23,12 +40,12 @@ export default function RootLayout({
           href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap"
           rel="stylesheet"
         />
-        <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
       </head>
       <body className="bg-background min-h-screen text-slate-900 antialiased pb-20 md:pb-0">
         <Header />
         <main className="flex-1">{children}</main>
         <MobileTabBar />
+        <ServiceWorkerRegister />
       </body>
     </html>
   );
@@ -67,6 +84,22 @@ function Header() {
         <AuthButton />
       </nav>
     </header>
+  );
+}
+
+function ServiceWorkerRegister() {
+  return (
+    <script
+      dangerouslySetInnerHTML={{
+        __html: `
+          if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+              navigator.serviceWorker.register('/sw.js');
+            });
+          }
+        `,
+      }}
+    />
   );
 }
 
