@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { getSessions, getAllProgress, getReviewLevel, saveSession, setCurrentSession, generateSessionId } from "@/lib/storage";
+import { fetchReadyGroups, WordGroup } from "@/lib/admin";
 import { getGroupedWords } from "@/lib/review";
 import { getDueWords } from "@/lib/spaced-repetition";
 import { getDailyStats, DailyStat } from "@/lib/stats";
@@ -47,6 +48,7 @@ export default function HomePage() {
   const [dueWords, setDueWords] = useState<{ wordData: WordData; progress: WordProgress }[]>([]);
   const [dailyStats, setDailyStats] = useState<DailyStat[]>([]);
   const [gameProfile, setGameProfile] = useState<GameProfile | null>(null);
+  const [wordGroups, setWordGroups] = useState<WordGroup[]>([]);
 
   useEffect(() => {
     const allSessions = getSessions();
@@ -80,6 +82,9 @@ export default function HomePage() {
 
     // 게이미피케이션 프로필
     setGameProfile(getGameProfile());
+
+    // 추천 단어장
+    fetchReadyGroups().then(setWordGroups);
   }, []);
 
   const stats = calcStats(sessions);
@@ -272,6 +277,50 @@ export default function HomePage() {
             play_arrow
           </span>
         </button>
+      )}
+
+      {/* 추천 단어장 */}
+      {wordGroups.length > 0 && (
+        <div className="bg-white rounded-xl p-6 shadow-sm border border-slate-200 mb-8">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <span className="material-symbols-outlined text-primary">menu_book</span>
+              <h3 className="font-bold text-lg">추천 단어장</h3>
+            </div>
+            <Link href="/study/input" className="text-sm text-primary font-medium hover:underline">
+              전체보기
+            </Link>
+          </div>
+          <div className="space-y-2">
+            {wordGroups.slice(0, 3).map((group) => (
+              <button
+                key={group.id}
+                onClick={() => {
+                  const session = {
+                    id: generateSessionId(),
+                    name: group.name,
+                    words: group.words,
+                    currentStep: 1,
+                    wrongWords: [],
+                    createdAt: new Date().toISOString(),
+                  };
+                  saveSession(session);
+                  setCurrentSession(session);
+                  router.push("/study/preview");
+                }}
+                className="w-full flex items-center justify-between p-3 rounded-lg hover:bg-slate-50 transition-colors text-left group/item"
+              >
+                <div>
+                  <p className="font-medium text-sm">{group.name}</p>
+                  <p className="text-xs text-slate-400">{group.words.length}단어</p>
+                </div>
+                <span className="material-symbols-outlined text-slate-300 group-hover/item:text-primary transition-colors text-lg">
+                  play_arrow
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
       )}
 
       {/* 새 학습 시작 */}

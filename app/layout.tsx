@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import AuthButton from "@/components/AuthButton";
+import { AdminNavLink, AdminTabLink } from "@/components/AdminLink";
 
 export const viewport: Viewport = {
   themeColor: "#137fec",
@@ -81,6 +82,7 @@ function Header() {
         >
           오답 노트
         </a>
+        <AdminNavLink />
         <AuthButton />
       </nav>
     </header>
@@ -122,6 +124,7 @@ function MobileTabBar() {
         <span className="material-symbols-outlined text-2xl">person</span>
         <span className="text-[10px] font-medium">계정</span>
       </a>
+      <AdminTabLink />
     </nav>
   );
 }

@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { fetchMultipleWords, translateMultipleWords, getFirstDefinition } from "@/lib/dictionary-api";
 import { saveSession, setCurrentSession, generateSessionId, getAllProgress } from "@/lib/storage";
+import { fetchReadyGroups, WordGroup } from "@/lib/admin";
 import { WordData } from "@/types";
 
 export default function InputPage() {
@@ -15,8 +16,11 @@ export default function InputPage() {
   const [step, setStep] = useState<"input" | "confirm">("input");
   const [groupName, setGroupName] = useState("");
   const [reviewWords, setReviewWords] = useState<string[]>([]);
+  const [tab, setTab] = useState<"manual" | "library">("manual");
+  const [wordGroups, setWordGroups] = useState<WordGroup[]>([]);
+  const [libraryLoading, setLibraryLoading] = useState(false);
 
-  // 이전 오답 단어 로드
+  // 이전 오답 단어 로드 + 단어장 목록 로드
   useEffect(() => {
     const progress = getAllProgress();
     const unmastered = progress
@@ -24,7 +28,25 @@ export default function InputPage() {
       .sort((a, b) => b.wrongCount - a.wrongCount)
       .map((p) => p.word);
     setReviewWords(unmastered);
+
+    fetchReadyGroups().then(setWordGroups);
   }, []);
+
+  // 단어장에서 바로 학습 시작
+  const handleStartFromLibrary = (group: WordGroup) => {
+    setLibraryLoading(true);
+    const session = {
+      id: generateSessionId(),
+      name: group.name,
+      words: group.words,
+      currentStep: 1,
+      wrongWords: [],
+      createdAt: new Date().toISOString(),
+    };
+    saveSession(session);
+    setCurrentSession(session);
+    router.push("/study/preview");
+  };
 
   const handleAddReviewWords = () => {
     const next = [...words];
@@ -125,12 +147,65 @@ export default function InputPage() {
               edit_note
             </span>
           </div>
-          <h2 className="text-2xl font-bold mb-2">학습할 단어 입력</h2>
+          <h2 className="text-2xl font-bold mb-2">학습할 단어</h2>
           <p className="text-slate-500">
-            영단어를 입력하세요 (최소 1개, 최대 10개)
+            직접 입력하거나 단어장에서 선택하세요
           </p>
         </div>
 
+        {/* 탭 전환 */}
+        {wordGroups.length > 0 && (
+          <div className="flex rounded-xl bg-slate-100 p-1 mb-6">
+            <button
+              onClick={() => setTab("manual")}
+              className={`flex-1 py-2 text-sm font-semibold rounded-lg transition-all ${
+                tab === "manual" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500"
+              }`}
+            >
+              직접 입력
+            </button>
+            <button
+              onClick={() => setTab("library")}
+              className={`flex-1 py-2 text-sm font-semibold rounded-lg transition-all ${
+                tab === "library" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500"
+              }`}
+            >
+              단어장 선택
+            </button>
+          </div>
+        )}
+
+        {/* 단어장 라이브러리 */}
+        {tab === "library" && (
+          <div className="space-y-3 mb-6">
+            {wordGroups.map((group) => (
+              <button
+                key={group.id}
+                onClick={() => handleStartFromLibrary(group)}
+                disabled={libraryLoading}
+                className="w-full flex items-center justify-between bg-white rounded-xl p-5 shadow-sm border border-slate-200 hover:border-primary hover:shadow-md transition-all group text-left disabled:opacity-50"
+              >
+                <div className="flex items-center gap-4">
+                  <div className="flex items-center justify-center w-11 h-11 rounded-lg bg-primary/10 text-primary group-hover:bg-primary group-hover:text-white transition-colors">
+                    <span className="material-symbols-outlined">menu_book</span>
+                  </div>
+                  <div>
+                    <h3 className="font-bold">{group.name}</h3>
+                    <p className="text-sm text-slate-500">
+                      {group.words.length}단어 · {group.words.slice(0, 4).map((w) => w.word).join(", ")}
+                      {group.words.length > 4 && "..."}
+                    </p>
+                  </div>
+                </div>
+                <span className="material-symbols-outlined text-slate-400 group-hover:text-primary transition-colors">
+                  play_arrow
+                </span>
+              </button>
+            ))}
+          </div>
+        )}
+
+        {tab === "manual" && <>
         {/* 이전 오답 단어 포함 배너 */}
         {reviewWords.length > 0 && (
           <div className="bg-red-50 rounded-xl p-4 border border-red-200 mb-4 flex items-center justify-between">
@@ -222,6 +297,7 @@ export default function InputPage() {
             </button>
           </div>
         </div>
+      </>}
       </div>
     );
   }
