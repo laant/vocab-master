@@ -130,7 +130,10 @@ export default function AdminPage() {
             {groups.map((group) => (
               <div
                 key={group.id}
-                className="flex items-center justify-between p-4 rounded-lg border border-slate-100 hover:border-slate-200 transition-colors"
+                className={`flex items-center justify-between p-4 rounded-lg border border-slate-100 hover:border-slate-200 transition-colors ${
+                  group.status === 'ready' ? 'cursor-pointer hover:bg-slate-50' : ''
+                }`}
+                onClick={() => group.status === 'ready' && router.push(`/admin/group?id=${group.id}`)}
               >
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-1">
@@ -142,6 +145,9 @@ export default function AdminPage() {
                       {group.status === 'ready' ? '준비완료' : '대기중'}
                     </span>
                     <h4 className="font-bold text-sm truncate">{group.name}</h4>
+                    {group.status === 'ready' && (
+                      <span className="material-symbols-outlined text-sm text-slate-400">edit</span>
+                    )}
                   </div>
                   <p className="text-xs text-slate-400">
                     {group.raw_words.length}단어 · {new Date(group.created_at).toLocaleDateString('ko-KR')}
@@ -156,7 +162,7 @@ export default function AdminPage() {
                 <div className="flex items-center gap-2 ml-3">
                   {group.status === 'pending' && (
                     <button
-                      onClick={() => handleProcess(group.id)}
+                      onClick={(e) => { e.stopPropagation(); handleProcess(group.id); }}
                       disabled={processing !== null}
                       className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-primary text-white text-xs font-bold hover:bg-primary/90 disabled:opacity-50"
                     >
@@ -174,7 +180,7 @@ export default function AdminPage() {
                     </button>
                   )}
                   <button
-                    onClick={() => handleDelete(group.id)}
+                    onClick={(e) => { e.stopPropagation(); handleDelete(group.id); }}
                     disabled={processing !== null}
                     className="p-1.5 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors disabled:opacity-50"
                   >

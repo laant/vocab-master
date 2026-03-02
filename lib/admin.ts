@@ -99,6 +99,24 @@ export async function processWordGroup(
   return !updateError;
 }
 
+export async function fetchWordGroup(groupId: string): Promise<WordGroup | null> {
+  const { data, error } = await supabase
+    .from('word_groups')
+    .select('*')
+    .eq('id', groupId)
+    .single();
+  if (error || !data) return null;
+  return data as WordGroup;
+}
+
+export async function updateWordGroupWords(groupId: string, words: WordData[]): Promise<boolean> {
+  const { error } = await supabase
+    .from('word_groups')
+    .update({ words })
+    .eq('id', groupId);
+  return !error;
+}
+
 export async function deleteWordGroup(groupId: string): Promise<boolean> {
   const { error } = await supabase
     .from('word_groups')
