@@ -82,6 +82,12 @@ function Header() {
         >
           오답 노트
         </a>
+        <a
+          className="text-sm font-medium text-slate-600 hover:text-primary transition-colors"
+          href="/leaderboard"
+        >
+          랭킹
+        </a>
         <AdminNavLink />
         <AuthButton />
       </nav>
@@ -116,13 +122,13 @@ function MobileTabBar() {
         <span className="material-symbols-outlined text-2xl">add_circle</span>
         <span className="text-[10px] font-medium">새 학습</span>
       </a>
-      <a href="/wrong-words" className="flex flex-col items-center gap-0.5 px-3 py-1 text-slate-500 active:text-primary">
-        <span className="material-symbols-outlined text-2xl">auto_stories</span>
-        <span className="text-[10px] font-medium">오답 노트</span>
+      <a href="/leaderboard" className="flex flex-col items-center gap-0.5 px-3 py-1 text-slate-500 active:text-primary">
+        <span className="material-symbols-outlined text-2xl">emoji_events</span>
+        <span className="text-[10px] font-medium">랭킹</span>
       </a>
-      <a href="/auth" className="flex flex-col items-center gap-0.5 px-3 py-1 text-slate-500 active:text-primary">
+      <a href="/profile" className="flex flex-col items-center gap-0.5 px-3 py-1 text-slate-500 active:text-primary">
         <span className="material-symbols-outlined text-2xl">person</span>
-        <span className="text-[10px] font-medium">계정</span>
+        <span className="text-[10px] font-medium">프로필</span>
       </a>
       <AdminTabLink />
     </nav>

@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { syncFromSupabase } from '@/lib/sync';
+import { getUserProfile } from '@/lib/leaderboard';
 
 type Mode = 'login' | 'signup';
 
@@ -28,10 +29,18 @@ export default function AuthPage() {
         if (error) throw error;
         setSuccess('가입 완료! 이메일을 확인해주세요.');
       } else {
-        const { error } = await supabase.auth.signInWithPassword({ email, password });
+        const { data: authData, error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
         // 로그인 성공 → Supabase에서 데이터 동기화
         await syncFromSupabase();
+        // 닉네임 미설정 시 프로필 페이지로 이동
+        if (authData.user) {
+          const profile = await getUserProfile(authData.user.id);
+          if (!profile || !profile.nickname) {
+            router.push('/profile');
+            return;
+          }
+        }
         router.push('/');
       }
     } catch (err: unknown) {
