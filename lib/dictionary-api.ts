@@ -75,15 +75,15 @@ export function getFirstExample(word: WordData): string | null {
   return null;
 }
 
-// MyMemory API로 영어 → 한국어 번역
+// Google Translate API로 영어 → 한국어 번역
 export async function translateToKorean(word: string): Promise<string> {
   try {
     const res = await fetch(
-      `https://api.mymemory.translated.net/get?q=${encodeURIComponent(word)}&langpair=en|ko`
+      `https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl=ko&dt=t&q=${encodeURIComponent(word)}`
     );
     if (!res.ok) return '';
     const data = await res.json();
-    return data.responseData?.translatedText || '';
+    return data?.[0]?.[0]?.[0] || '';
   } catch {
     return '';
   }
