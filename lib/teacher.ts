@@ -54,7 +54,11 @@ export async function registerTeacher(teacherEmail: string): Promise<string | nu
 
   const { error } = await supabase
     .from('teacher_students')
-    .insert({ student_id: user.id, teacher_email: teacherEmail.trim().toLowerCase() });
+    .insert({
+      student_id: user.id,
+      student_email: user.email || '',
+      teacher_email: teacherEmail.trim().toLowerCase(),
+    });
 
   if (error) {
     console.error('선생님 등록 실패:', error);
@@ -95,15 +99,19 @@ export async function getMyStudents(): Promise<StudentStats[]> {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user?.email) return [];
 
-  // 1. 나를 등록한 학생 ID 목록
+  // 1. 나를 등록한 학생 ID + 이메일 목록
   const { data: relations, error: relError } = await supabase
     .from('teacher_students')
-    .select('student_id')
+    .select('student_id, student_email')
     .eq('teacher_email', user.email.toLowerCase());
 
   if (relError || !relations || relations.length === 0) return [];
 
   const studentIds = relations.map((r) => r.student_id);
+  const emailMap = new Map<string, string>();
+  relations.forEach((r: { student_id: string; student_email: string }) => {
+    emailMap.set(r.student_id, r.student_email || '');
+  });
 
   // 2. 학생들의 학습 데이터 조회 (없을 수 있음)
   const { data: userData } = await supabase
@@ -171,7 +179,7 @@ export async function getMyStudents(): Promise<StudentStats[]> {
 
     return {
       user_id: studentId,
-      nickname: nicknameMap.get(studentId) || '익명',
+      nickname: nicknameMap.get(studentId) || emailMap.get(studentId)?.split('@')[0] || '익명',
       level: levelInfo.level,
       levelTitle: getLevelTitle(levelInfo.level),
       xp: gp.xp,
