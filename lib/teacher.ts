@@ -26,31 +26,24 @@ export interface StudentStats {
   }[];
 }
 
-// 내가 등록한 선생님 이메일 조회
-export async function getMyTeacher(): Promise<string | null> {
+// 내가 등록한 선생님 이메일 목록 조회
+export async function getMyTeachers(): Promise<string[]> {
   const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return null;
+  if (!user) return [];
 
   const { data, error } = await supabase
     .from('teacher_students')
     .select('teacher_email')
-    .eq('student_id', user.id)
-    .single();
+    .eq('student_id', user.id);
 
-  if (error || !data) return null;
-  return data.teacher_email;
+  if (error || !data) return [];
+  return data.map((d: { teacher_email: string }) => d.teacher_email);
 }
 
-// 선생님 등록
+// 선생님 등록 (여러 명 가능)
 export async function registerTeacher(teacherEmail: string): Promise<string | null> {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return '로그인이 필요합니다';
-
-  // 기존 등록 삭제 후 새로 등록 (1명만 허용)
-  await supabase
-    .from('teacher_students')
-    .delete()
-    .eq('student_id', user.id);
 
   const { error } = await supabase
     .from('teacher_students')
@@ -61,21 +54,25 @@ export async function registerTeacher(teacherEmail: string): Promise<string | nu
     });
 
   if (error) {
+    if (error.message.includes('duplicate')) {
+      return '이미 등록된 선생님입니다';
+    }
     console.error('선생님 등록 실패:', error);
     return error.message;
   }
   return null; // 성공
 }
 
-// 선생님 등록 해제
-export async function removeTeacher(): Promise<boolean> {
+// 선생님 1명 등록 해제
+export async function removeTeacher(teacherEmail: string): Promise<boolean> {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return false;
 
   const { error } = await supabase
     .from('teacher_students')
     .delete()
-    .eq('student_id', user.id);
+    .eq('student_id', user.id)
+    .eq('teacher_email', teacherEmail);
 
   return !error;
 }

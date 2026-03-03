@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { getUserProfile, saveUserProfile } from '@/lib/leaderboard';
 import { getGameProfile, calcLevel, getLevelTitle, BADGES } from '@/lib/gamification';
-import { getMyTeacher, registerTeacher, removeTeacher } from '@/lib/teacher';
+import { getMyTeachers, registerTeacher, removeTeacher } from '@/lib/teacher';
 import { GameProfile } from '@/types';
 
 export default function ProfilePage() {
@@ -18,9 +18,8 @@ export default function ProfilePage() {
   const [saved, setSaved] = useState(false);
   const [gameProfile, setGameProfile] = useState<GameProfile | null>(null);
   const [teacherEmail, setTeacherEmail] = useState('');
-  const [currentTeacher, setCurrentTeacher] = useState<string | null>(null);
+  const [teachers, setTeachers] = useState<string[]>([]);
   const [teacherSaving, setTeacherSaving] = useState(false);
-  const [teacherSaved, setTeacherSaved] = useState(false);
 
   useEffect(() => {
     async function load() {
@@ -37,11 +36,8 @@ export default function ProfilePage() {
 
       setGameProfile(getGameProfile());
 
-      const teacher = await getMyTeacher();
-      if (teacher) {
-        setCurrentTeacher(teacher);
-        setTeacherEmail(teacher);
-      }
+      const myTeachers = await getMyTeachers();
+      setTeachers(myTeachers);
 
       setLoading(false);
     }
@@ -172,61 +168,65 @@ export default function ProfilePage() {
         </div>
         <p className="text-xs text-slate-400 mb-4">선생님을 등록하면 선생님이 학습 현황을 확인할 수 있어요</p>
 
-        {currentTeacher ? (
-          <div className="flex items-center gap-3">
-            <div className="flex-1 flex items-center gap-2 px-4 py-3 rounded-xl bg-teal-50 border border-teal-200">
-              <span className="material-symbols-outlined text-teal-500 text-lg">mail</span>
-              <span className="text-sm font-medium text-teal-700">{currentTeacher}</span>
-            </div>
-            <button
-              onClick={async () => {
-                if (!confirm('선생님 등록을 해제할까요?')) return;
-                const success = await removeTeacher();
-                if (success) {
-                  setCurrentTeacher(null);
-                  setTeacherEmail('');
-                }
-              }}
-              className="px-4 py-3 rounded-xl text-sm font-medium text-red-500 hover:bg-red-50 border border-red-200 transition-colors"
-            >
-              해제
-            </button>
+        {/* 등록된 선생님 목록 */}
+        {teachers.length > 0 && (
+          <div className="space-y-2 mb-4">
+            {teachers.map((t) => (
+              <div key={t} className="flex items-center gap-3">
+                <div className="flex-1 flex items-center gap-2 px-4 py-2.5 rounded-xl bg-teal-50 border border-teal-200">
+                  <span className="material-symbols-outlined text-teal-500 text-lg">mail</span>
+                  <span className="text-sm font-medium text-teal-700">{t}</span>
+                </div>
+                <button
+                  onClick={async () => {
+                    if (!confirm(`${t} 선생님을 해제할까요?`)) return;
+                    const success = await removeTeacher(t);
+                    if (success) {
+                      setTeachers((prev) => prev.filter((e) => e !== t));
+                    }
+                  }}
+                  className="p-2 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors"
+                >
+                  <span className="material-symbols-outlined text-lg">close</span>
+                </button>
+              </div>
+            ))}
           </div>
-        ) : (
-          <form
-            onSubmit={async (e) => {
-              e.preventDefault();
-              if (!teacherEmail.trim()) return;
-              setTeacherSaving(true);
-              const errorMsg = await registerTeacher(teacherEmail.trim());
-              setTeacherSaving(false);
-              if (!errorMsg) {
-                setCurrentTeacher(teacherEmail.trim().toLowerCase());
-                setTeacherSaved(true);
-                setTimeout(() => setTeacherSaved(false), 2000);
-              } else {
-                alert('선생님 등록 실패: ' + errorMsg);
-              }
-            }}
-            className="flex gap-3"
-          >
-            <input
-              type="email"
-              value={teacherEmail}
-              onChange={(e) => setTeacherEmail(e.target.value)}
-              placeholder="선생님 이메일 주소"
-              required
-              className="flex-1 rounded-xl border border-slate-300 px-4 py-3 text-base focus:border-teal-500 focus:ring-1 focus:ring-teal-500/20 outline-none"
-            />
-            <button
-              type="submit"
-              disabled={teacherSaving || !teacherEmail.trim()}
-              className="px-5 py-3 rounded-xl bg-teal-500 text-white font-semibold hover:bg-teal-600 transition-colors disabled:opacity-50"
-            >
-              {teacherSaving ? '등록 중...' : teacherSaved ? '등록됨!' : '등록'}
-            </button>
-          </form>
         )}
+
+        {/* 선생님 추가 */}
+        <form
+          onSubmit={async (e) => {
+            e.preventDefault();
+            if (!teacherEmail.trim()) return;
+            setTeacherSaving(true);
+            const errorMsg = await registerTeacher(teacherEmail.trim());
+            setTeacherSaving(false);
+            if (!errorMsg) {
+              setTeachers((prev) => [...prev, teacherEmail.trim().toLowerCase()]);
+              setTeacherEmail('');
+            } else {
+              alert(errorMsg);
+            }
+          }}
+          className="flex gap-3"
+        >
+          <input
+            type="email"
+            value={teacherEmail}
+            onChange={(e) => setTeacherEmail(e.target.value)}
+            placeholder="선생님 이메일 주소"
+            required
+            className="flex-1 rounded-xl border border-slate-300 px-4 py-3 text-base focus:border-teal-500 focus:ring-1 focus:ring-teal-500/20 outline-none"
+          />
+          <button
+            type="submit"
+            disabled={teacherSaving || !teacherEmail.trim()}
+            className="px-5 py-3 rounded-xl bg-teal-500 text-white font-semibold hover:bg-teal-600 transition-colors disabled:opacity-50"
+          >
+            {teacherSaving ? '등록 중...' : '추가'}
+          </button>
+        </form>
       </div>
 
       {/* 계정 정보 */}
