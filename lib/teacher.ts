@@ -16,7 +16,9 @@ export interface StudentStats {
     wordCount: number;
     wrongCount: number;
     accuracy: number;
+    completed: boolean;
   }[];
+  lastStudyDate: string | null;
   wrongWords: {
     word: string;
     wrongCount: number;
@@ -131,11 +133,9 @@ export async function getMyStudents(): Promise<StudentStats[]> {
     const gp = row.game_profile || { xp: 0, level: 1, streak: 0, badges: [] };
     const levelInfo = calcLevel(gp.xp);
 
-    // 완료된 세션만 (currentStep >= 5), 최근 20개
-    const completedSessions = (row.sessions || [])
-      .filter((s) => s.currentStep >= 5)
+    // 전체 세션, 최근순 정렬
+    const allSessions = (row.sessions || [])
       .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
-      .slice(0, 20)
       .map((s) => ({
         name: s.name || s.words.slice(0, 3).map((w) => w.word).join(', ') + '...',
         date: s.createdAt,
@@ -144,7 +144,10 @@ export async function getMyStudents(): Promise<StudentStats[]> {
         accuracy: s.words.length > 0
           ? Math.round(((s.words.length - s.wrongWords.length) / s.words.length) * 100)
           : 0,
+        completed: s.currentStep >= 5,
       }));
+
+    const lastStudyDate = allSessions.length > 0 ? allSessions[0].date : null;
 
     // 오답 단어 (wrongCount > 0), 오답 많은 순
     const wrongWords = (row.progress || [])
@@ -165,7 +168,8 @@ export async function getMyStudents(): Promise<StudentStats[]> {
       xp: gp.xp,
       streak: gp.streak,
       badgeCount: (gp.badges || []).length,
-      sessions: completedSessions,
+      sessions: allSessions,
+      lastStudyDate,
       wrongWords,
     };
   });
