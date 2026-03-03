@@ -204,6 +204,8 @@ export default function ProfilePage() {
                 setCurrentTeacher(teacherEmail.trim().toLowerCase());
                 setTeacherSaved(true);
                 setTimeout(() => setTeacherSaved(false), 2000);
+              } else {
+                alert('선생님 등록에 실패했습니다. 다시 시도해주세요.');
               }
             }}
             className="flex gap-3"
