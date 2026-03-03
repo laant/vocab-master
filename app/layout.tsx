@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import AuthButton from "@/components/AuthButton";
 import { AdminNavLink, AdminTabLink } from "@/components/AdminLink";
+import { TeacherNavLink, TeacherTabLink } from "@/components/TeacherLink";
 
 export const viewport: Viewport = {
   themeColor: "#137fec",
@@ -88,6 +89,7 @@ function Header() {
         >
           랭킹
         </a>
+        <TeacherNavLink />
         <AdminNavLink />
         <AuthButton />
       </nav>
@@ -130,6 +132,7 @@ function MobileTabBar() {
         <span className="material-symbols-outlined text-2xl">person</span>
         <span className="text-[10px] font-medium">프로필</span>
       </a>
+      <TeacherTabLink />
       <AdminTabLink />
     </nav>
   );
