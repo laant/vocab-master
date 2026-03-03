@@ -105,13 +105,25 @@ export async function getMyStudents(): Promise<StudentStats[]> {
 
   const studentIds = relations.map((r) => r.student_id);
 
-  // 2. 학생들의 학습 데이터 조회
-  const { data: userData, error: udError } = await supabase
+  // 2. 학생들의 학습 데이터 조회 (없을 수 있음)
+  const { data: userData } = await supabase
     .from('user_data')
     .select('user_id, game_profile, sessions, progress')
     .in('user_id', studentIds);
 
-  if (udError || !userData) return [];
+  const userDataMap = new Map<string, {
+    game_profile: GameProfile;
+    sessions: StudySession[];
+    progress: WordProgress[];
+  }>();
+  ((userData || []) as unknown as {
+    user_id: string;
+    game_profile: GameProfile;
+    sessions: StudySession[];
+    progress: WordProgress[];
+  }[]).forEach((row) => {
+    userDataMap.set(row.user_id, row);
+  });
 
   // 3. 닉네임 별도 조회
   const { data: profiles } = await supabase
@@ -124,17 +136,14 @@ export async function getMyStudents(): Promise<StudentStats[]> {
     nicknameMap.set(p.user_id, p.nickname);
   });
 
-  return (userData as unknown as {
-    user_id: string;
-    game_profile: GameProfile;
-    sessions: StudySession[];
-    progress: WordProgress[];
-  }[]).map((row) => {
-    const gp = row.game_profile || { xp: 0, level: 1, streak: 0, badges: [] };
+  // 4. 모든 학생 ID 기준으로 결과 생성 (user_data 없어도 포함)
+  return studentIds.map((studentId) => {
+    const row = userDataMap.get(studentId);
+    const gp = row?.game_profile || { xp: 0, level: 1, streak: 0, badges: [] };
     const levelInfo = calcLevel(gp.xp);
 
     // 전체 세션, 최근순 정렬
-    const allSessions = (row.sessions || [])
+    const allSessions = (row?.sessions || [])
       .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
       .map((s) => ({
         name: s.name || s.words.slice(0, 3).map((w) => w.word).join(', ') + '...',
@@ -150,7 +159,7 @@ export async function getMyStudents(): Promise<StudentStats[]> {
     const lastStudyDate = allSessions.length > 0 ? allSessions[0].date : null;
 
     // 오답 단어 (wrongCount > 0), 오답 많은 순
-    const wrongWords = (row.progress || [])
+    const wrongWords = (row?.progress || [])
       .filter((p) => p.wrongCount > 0)
       .sort((a, b) => b.wrongCount - a.wrongCount)
       .slice(0, 30)
@@ -161,8 +170,8 @@ export async function getMyStudents(): Promise<StudentStats[]> {
       }));
 
     return {
-      user_id: row.user_id,
-      nickname: nicknameMap.get(row.user_id) || '익명',
+      user_id: studentId,
+      nickname: nicknameMap.get(studentId) || '익명',
       level: levelInfo.level,
       levelTitle: getLevelTitle(levelInfo.level),
       xp: gp.xp,
