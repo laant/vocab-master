@@ -24,11 +24,17 @@ export default function AuthButton() {
 
   if (user) {
     return (
-      <div className="flex items-center gap-2">
-        <span className="text-xs text-slate-500 hidden sm:inline truncate max-w-[120px]">{user.email}</span>
+      <div className="flex items-center gap-3">
+        <a
+          href="/profile"
+          className="flex items-center gap-1.5 text-sm font-medium text-slate-600 hover:text-primary transition-colors"
+        >
+          <span className="material-symbols-outlined text-lg">person</span>
+          내 정보
+        </a>
         <button
           onClick={handleLogout}
-          className="text-sm font-medium text-slate-600 hover:text-primary transition-colors"
+          className="text-sm font-medium text-slate-500 hover:text-red-500 transition-colors"
         >
           로그아웃
         </button>
