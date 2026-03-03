@@ -198,14 +198,14 @@ export default function ProfilePage() {
               e.preventDefault();
               if (!teacherEmail.trim()) return;
               setTeacherSaving(true);
-              const success = await registerTeacher(teacherEmail.trim());
+              const errorMsg = await registerTeacher(teacherEmail.trim());
               setTeacherSaving(false);
-              if (success) {
+              if (!errorMsg) {
                 setCurrentTeacher(teacherEmail.trim().toLowerCase());
                 setTeacherSaved(true);
                 setTimeout(() => setTeacherSaved(false), 2000);
               } else {
-                alert('선생님 등록에 실패했습니다. 다시 시도해주세요.');
+                alert('선생님 등록 실패: ' + errorMsg);
               }
             }}
             className="flex gap-3"

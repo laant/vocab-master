@@ -40,18 +40,25 @@ export async function getMyTeacher(): Promise<string | null> {
 }
 
 // 선생님 등록
-export async function registerTeacher(teacherEmail: string): Promise<boolean> {
+export async function registerTeacher(teacherEmail: string): Promise<string | null> {
   const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return false;
+  if (!user) return '로그인이 필요합니다';
+
+  // 기존 등록 삭제 후 새로 등록 (1명만 허용)
+  await supabase
+    .from('teacher_students')
+    .delete()
+    .eq('student_id', user.id);
 
   const { error } = await supabase
     .from('teacher_students')
-    .upsert(
-      { student_id: user.id, teacher_email: teacherEmail.trim().toLowerCase() },
-      { onConflict: 'student_id,teacher_email' }
-    );
+    .insert({ student_id: user.id, teacher_email: teacherEmail.trim().toLowerCase() });
 
-  return !error;
+  if (error) {
+    console.error('선생님 등록 실패:', error);
+    return error.message;
+  }
+  return null; // 성공
 }
 
 // 선생님 등록 해제
