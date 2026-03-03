@@ -103,20 +103,30 @@ export async function getMyStudents(): Promise<StudentStats[]> {
 
   const studentIds = relations.map((r) => r.student_id);
 
-  // 2. 학생들의 프로필 + 학습 데이터 조회
+  // 2. 학생들의 학습 데이터 조회
   const { data: userData, error: udError } = await supabase
     .from('user_data')
-    .select('user_id, game_profile, sessions, progress, user_profiles(nickname)')
+    .select('user_id, game_profile, sessions, progress')
     .in('user_id', studentIds);
 
   if (udError || !userData) return [];
+
+  // 3. 닉네임 별도 조회
+  const { data: profiles } = await supabase
+    .from('user_profiles')
+    .select('user_id, nickname')
+    .in('user_id', studentIds);
+
+  const nicknameMap = new Map<string, string>();
+  (profiles || []).forEach((p: { user_id: string; nickname: string }) => {
+    nicknameMap.set(p.user_id, p.nickname);
+  });
 
   return (userData as unknown as {
     user_id: string;
     game_profile: GameProfile;
     sessions: StudySession[];
     progress: WordProgress[];
-    user_profiles: { nickname: string } | null;
   }[]).map((row) => {
     const gp = row.game_profile || { xp: 0, level: 1, streak: 0, badges: [] };
     const levelInfo = calcLevel(gp.xp);
@@ -149,7 +159,7 @@ export async function getMyStudents(): Promise<StudentStats[]> {
 
     return {
       user_id: row.user_id,
-      nickname: row.user_profiles?.nickname || '익명',
+      nickname: nicknameMap.get(row.user_id) || '익명',
       level: levelInfo.level,
       levelTitle: getLevelTitle(levelInfo.level),
       xp: gp.xp,
