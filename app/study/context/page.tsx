@@ -92,33 +92,42 @@ export default function ContextPage() {
   const total = questions.length;
   const q = questions[currentIndex];
 
+  const goNextQuestion = (currentCorrect: number) => {
+    if (timerRef.current) clearTimeout(timerRef.current);
+    setSelected(null);
+    setAnswerState("idle");
+    if (currentIndex < total - 1) {
+      setCurrentIndex(currentIndex + 1);
+    } else {
+      const result = processBonusComplete(currentCorrect);
+      setBonusXp(result.xpGained);
+      setCompleted(true);
+      localStorage.removeItem("vocab_bonus_session");
+    }
+  };
+
   const handleSelect = (choice: string) => {
     if (answerState !== "idle") return;
     setSelected(choice);
 
     if (choice === q.answer) {
       setAnswerState("correct");
-      setCorrectCount((prev) => prev + 1);
-      // 2초 후 다음 문제
+      const newCorrect = correctCount + 1;
+      setCorrectCount(newCorrect);
       timerRef.current = setTimeout(() => {
-        setSelected(null);
-        setAnswerState("idle");
-        if (currentIndex < total - 1) {
-          setCurrentIndex(currentIndex + 1);
-        } else {
-          const result = processBonusComplete(correctCount + 1);
-          setBonusXp(result.xpGained);
-          setCompleted(true);
-          localStorage.removeItem("vocab_bonus_session");
-        }
+        goNextQuestion(newCorrect);
       }, 2000);
     } else {
       setAnswerState("wrong");
-      // 3초 후 같은 문제 다시
       timerRef.current = setTimeout(() => {
         reshuffleCurrentQuestion();
       }, 3000);
     }
+  };
+
+  const handlePass = () => {
+    if (answerState !== "idle") return;
+    goNextQuestion(correctCount);
   };
 
   // 보너스 완료 화면
@@ -241,6 +250,18 @@ export default function ContextPage() {
         <div className="text-center mb-4 animate-[fadeIn_0.2s_ease-out]">
           <p className="text-red-500 font-bold text-lg">다시 생각해보세요</p>
           <p className="text-slate-400 text-sm mt-1">3초 후 다시 풀어보세요</p>
+        </div>
+      )}
+
+      {/* PASS 버튼 */}
+      {answerState === "idle" && (
+        <div className="flex justify-end mb-3">
+          <button
+            onClick={handlePass}
+            className="px-5 py-2 rounded-lg border-2 border-slate-200 text-slate-400 font-bold text-sm hover:border-slate-300 hover:text-slate-500 transition-colors"
+          >
+            PASS
+          </button>
         </div>
       )}
 
