@@ -168,30 +168,13 @@ export default function QuizPage() {
         {answerState !== "idle" && (
           <div className="absolute inset-0 flex items-center justify-center rounded-2xl animate-[fadeIn_0.2s_ease-out]">
             {answerState === "correct" ? (
-              <div className="w-28 h-28 rounded-full border-[6px] border-green-400 bg-green-50/80 flex items-center justify-center">
-                <span className="material-symbols-outlined text-green-500 text-6xl" style={{ fontVariationSettings: "'FILL' 1" }}>
-                  check
-                </span>
-              </div>
+              <span className="text-green-400 text-[120px] font-bold leading-none select-none" style={{ textShadow: "0 2px 12px rgba(74,222,128,0.3)" }}>O</span>
             ) : (
-              <div className="w-28 h-28 rounded-full border-[6px] border-red-400 bg-red-50/80 flex items-center justify-center">
-                <span className="material-symbols-outlined text-red-500 text-6xl" style={{ fontVariationSettings: "'FILL' 1" }}>
-                  close
-                </span>
-              </div>
+              <span className="text-red-400 text-[120px] font-bold leading-none select-none" style={{ textShadow: "0 2px 12px rgba(248,113,113,0.3)" }}>X</span>
             )}
           </div>
         )}
       </div>
-
-      {/* 오답 시 정답 표시 */}
-      {answerState === "wrong" && (
-        <div className="text-center mb-4 animate-[fadeIn_0.2s_ease-out]">
-          <p className="text-red-500 font-bold">
-            정답: {currentWord.korean || getFirstDefinition(currentWord)}
-          </p>
-        </div>
-      )}
 
       {/* 선택지 */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-8">
