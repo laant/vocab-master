@@ -62,6 +62,6 @@ export const STEP_INFO: Record<StudyStep, { title: string; description: string; 
   1: { title: '노출 및 탐색', description: '카드를 넘기며 가볍게 읽어보세요', icon: 'visibility' },
   2: { title: '뜻 고르기', description: '4개 보기 중 올바른 뜻을 고르세요', icon: 'quiz' },
   3: { title: '스펠링 맞히기', description: '빈칸에 알맞은 철자를 채우세요', icon: 'spellcheck' },
-  4: { title: '문장 완성', description: '문장의 빈칸에 알맞은 단어를 넣으세요', icon: 'auto_stories' },
+  4: { title: '듣기 퀴즈', description: '발음을 듣고 올바른 뜻을 고르세요', icon: 'headphones' },
   5: { title: '최종 확인', description: '틀린 단어를 모두 맞힐 때까지!', icon: 'emoji_events' },
 };

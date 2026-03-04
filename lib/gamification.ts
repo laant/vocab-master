@@ -157,3 +157,17 @@ export function processSessionComplete(
     streak: newStreak,
   };
 }
+
+// 보너스 단계 완료 시 XP 추가 (오답 기록 없이 순수 보상만)
+export function processBonusComplete(correctCount: number): { xpGained: number } {
+  if (correctCount <= 0) return { xpGained: 0 };
+
+  const profile = getGameProfile();
+  const xpGained = correctCount * 10;
+  profile.xp += xpGained;
+  const { level: newLevel } = calcLevel(profile.xp);
+  profile.level = newLevel;
+  saveGameProfile(profile);
+
+  return { xpGained };
+}

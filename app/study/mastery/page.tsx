@@ -246,6 +246,19 @@ export default function MasteryPage() {
 
           {/* 액션 버튼 */}
           <div className="flex flex-col gap-3 w-full">
+            {/* 보너스 문제 도전 */}
+            <button
+              onClick={() => {
+                localStorage.setItem("vocab_bonus_session", JSON.stringify(session));
+                router.push("/study/context");
+              }}
+              className="w-full py-4 rounded-xl bg-gradient-to-r from-amber-400 to-orange-500 text-white font-bold text-lg shadow-lg shadow-orange-500/20 hover:opacity-90 transition-opacity flex items-center justify-center gap-2"
+            >
+              <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1" }}>
+                stars
+              </span>
+              보너스 문제 도전! (+XP)
+            </button>
             {isReviewSession && (
               <button
                 onClick={() => router.push("/study/review")}

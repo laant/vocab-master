@@ -141,7 +141,7 @@ export default function RecallPage() {
     } else {
       const updated = { ...session, currentStep: 4, wrongWords };
       setCurrentSession(updated);
-      router.push("/study/context");
+      router.push("/study/listening");
     }
   };
 

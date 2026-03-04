@@ -2,8 +2,8 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { getCurrentSession, setCurrentSession } from "@/lib/storage";
 import { getFirstExample } from "@/lib/dictionary-api";
+import { processBonusComplete } from "@/lib/gamification";
 import { StudySession } from "@/types";
 
 function shuffle<T>(arr: T[]): T[] {
@@ -16,9 +16,9 @@ function shuffle<T>(arr: T[]): T[] {
 }
 
 interface Question {
-  sentence: string; // 빈칸이 포함된 문장
-  answer: string;   // 정답 단어
-  choices: string[]; // 선택지
+  sentence: string;
+  answer: string;
+  choices: string[];
 }
 
 export default function ContextPage() {
@@ -28,7 +28,9 @@ export default function ContextPage() {
   const [questions, setQuestions] = useState<Question[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
   const [answerState, setAnswerState] = useState<"idle" | "correct" | "wrong">("idle");
-  const [wrongWords, setWrongWords] = useState<string[]>([]);
+  const [correctCount, setCorrectCount] = useState(0);
+  const [completed, setCompleted] = useState(false);
+  const [bonusXp, setBonusXp] = useState(0);
 
   const buildQuestions = useCallback((s: StudySession) => {
     const qs: Question[] = s.words.map((word) => {
@@ -36,18 +38,15 @@ export default function ContextPage() {
       let sentence: string;
 
       if (example) {
-        // 예문에서 해당 단어를 ___로 치환
         const regex = new RegExp(`\\b${word.word}\\b`, "gi");
         sentence = example.replace(regex, "______");
         if (sentence === example) {
-          // 단어가 예문에 없으면 직접 만듦
           sentence = `The meaning of ______ is "${word.korean || word.meanings[0]?.definitions[0]?.definition || ""}"`;
         }
       } else {
         sentence = `The meaning of ______ is "${word.korean || word.meanings[0]?.definitions[0]?.definition || ""}"`;
       }
 
-      // 선택지: 정답 + 랜덤 3개
       const others = s.words
         .filter((w) => w.word !== word.word)
         .map((w) => w.word);
@@ -60,13 +59,14 @@ export default function ContextPage() {
   }, []);
 
   useEffect(() => {
-    const s = getCurrentSession();
-    if (!s) {
-      router.push("/study/input");
+    // 보너스 세션 데이터에서 읽기
+    const raw = localStorage.getItem("vocab_bonus_session");
+    if (!raw) {
+      router.push("/");
       return;
     }
+    const s: StudySession = JSON.parse(raw);
     setSession(s);
-    setWrongWords(s.wrongWords || []);
     buildQuestions(s);
   }, [router, buildQuestions]);
 
@@ -81,11 +81,10 @@ export default function ContextPage() {
 
     if (choice === q.answer) {
       setAnswerState("correct");
+      setCorrectCount((prev) => prev + 1);
     } else {
+      // 오답이지만 기록하지 않음 (보너스 단계)
       setAnswerState("wrong");
-      if (!wrongWords.includes(q.answer)) {
-        setWrongWords((prev) => [...prev, q.answer]);
-      }
     }
   };
 
@@ -96,18 +95,80 @@ export default function ContextPage() {
     if (currentIndex < total - 1) {
       setCurrentIndex(currentIndex + 1);
     } else {
-      const updated = { ...session, currentStep: 5, wrongWords };
-      setCurrentSession(updated);
-      router.push("/study/mastery");
+      // 보너스 완료 — XP 지급
+      const result = processBonusComplete(correctCount);
+      setBonusXp(result.xpGained);
+      setCompleted(true);
+      localStorage.removeItem("vocab_bonus_session");
     }
   };
+
+  // 보너스 완료 화면
+  if (completed) {
+    return (
+      <div className="mx-auto max-w-2xl px-4 py-12">
+        <div className="flex flex-col items-center text-center">
+          <div className="w-32 h-32 bg-gradient-to-tr from-amber-300 via-orange-400 to-orange-600 rounded-full flex items-center justify-center shadow-2xl shadow-orange-500/20 mb-8">
+            <span
+              className="material-symbols-outlined text-white text-6xl"
+              style={{ fontVariationSettings: "'FILL' 1" }}
+            >
+              stars
+            </span>
+          </div>
+
+          <h1 className="text-3xl font-extrabold mb-2">Bonus Clear!</h1>
+          <p className="text-slate-500 text-lg mb-8">보너스 문제를 완료했어요!</p>
+
+          <div className="grid grid-cols-2 gap-4 w-full mb-6">
+            <div className="bg-white rounded-xl p-6 border border-slate-200 shadow-sm">
+              <p className="text-slate-400 text-sm font-semibold uppercase mb-1">전체 문제</p>
+              <p className="text-3xl font-bold">{total}개</p>
+            </div>
+            <div className="bg-white rounded-xl p-6 border border-slate-200 shadow-sm">
+              <p className="text-slate-400 text-sm font-semibold uppercase mb-1">정답</p>
+              <p className="text-3xl font-bold text-green-500">{correctCount}개</p>
+            </div>
+          </div>
+
+          {bonusXp > 0 && (
+            <div className="w-full mb-8 bg-gradient-to-r from-amber-50 to-orange-50 rounded-xl p-5 border border-amber-200 animate-[fadeIn_0.5s_ease-out]">
+              <div className="flex items-center justify-center gap-3">
+                <span className="material-symbols-outlined text-amber-500 text-2xl" style={{ fontVariationSettings: "'FILL' 1" }}>bolt</span>
+                <p className="font-bold text-amber-700 text-lg">+{bonusXp} Bonus XP!</p>
+              </div>
+            </div>
+          )}
+
+          <div className="flex flex-col gap-3 w-full">
+            <button
+              onClick={() => router.push("/study/input")}
+              className="w-full py-4 rounded-xl bg-primary text-white font-bold text-lg shadow-lg shadow-primary/20 hover:opacity-90 transition-opacity flex items-center justify-center gap-2"
+            >
+              새 학습 시작
+              <span className="material-symbols-outlined">arrow_forward</span>
+            </button>
+            <button
+              onClick={() => router.push("/")}
+              className="w-full py-3 text-slate-500 font-medium hover:text-slate-700 transition-colors"
+            >
+              홈으로 돌아가기
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-12">
       {/* 헤더 */}
       <div className="flex items-center justify-between mb-8">
         <div>
-          <h2 className="text-xl font-bold">Step 4: 문장 완성</h2>
+          <div className="flex items-center gap-2">
+            <h2 className="text-xl font-bold">Bonus: 문장 완성</h2>
+            <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 text-xs font-bold">+XP</span>
+          </div>
           <p className="text-sm text-slate-500">빈칸에 알맞은 단어를 넣으세요</p>
         </div>
         <div className="text-sm font-bold text-slate-500">
@@ -118,7 +179,7 @@ export default function ContextPage() {
       {/* 프로그레스 바 */}
       <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden mb-8">
         <div
-          className="bg-primary h-full transition-all duration-300"
+          className="bg-amber-400 h-full transition-all duration-300"
           style={{ width: `${((currentIndex + 1) / total) * 100}%` }}
         />
       </div>
@@ -136,7 +197,7 @@ export default function ContextPage() {
                     ? "border-green-400 text-green-600"
                     : answerState === "wrong"
                     ? "border-red-400 text-red-500"
-                    : "border-primary text-primary"
+                    : "border-amber-400 text-amber-600"
                 }`}>
                   {answerState !== "idle" ? q.answer : selected || "?"}
                 </span>
@@ -150,7 +211,7 @@ export default function ContextPage() {
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-8">
         {q.choices.map((choice) => {
           const isCorrect = choice === q.answer;
-          let style = "border-slate-200 bg-white hover:border-primary";
+          let style = "border-slate-200 bg-white hover:border-amber-400";
 
           if (answerState !== "idle") {
             if (isCorrect) {
@@ -161,7 +222,7 @@ export default function ContextPage() {
               style = "border-slate-100 bg-slate-50 opacity-50";
             }
           } else if (choice === selected) {
-            style = "border-primary bg-primary/5";
+            style = "border-amber-400 bg-amber-50/50";
           }
 
           return (
@@ -186,7 +247,7 @@ export default function ContextPage() {
       {answerState !== "idle" && (
         <div className="text-center">
           {answerState === "correct" ? (
-            <p className="text-green-500 font-bold text-lg mb-4">정답!</p>
+            <p className="text-green-500 font-bold text-lg mb-4">정답! +10 XP</p>
           ) : (
             <p className="text-red-500 font-bold text-lg mb-4">
               정답: {q.answer}
@@ -194,9 +255,9 @@ export default function ContextPage() {
           )}
           <button
             onClick={goNext}
-            className="px-8 py-3 rounded-xl bg-primary text-white font-bold shadow-lg shadow-primary/20 hover:opacity-90 transition-opacity"
+            className="px-8 py-3 rounded-xl bg-gradient-to-r from-amber-400 to-orange-500 text-white font-bold shadow-lg shadow-orange-500/20 hover:opacity-90 transition-opacity"
           >
-            {currentIndex < total - 1 ? "다음 문제" : "최종 확인으로"}
+            {currentIndex < total - 1 ? "다음 문제" : "결과 보기"}
           </button>
         </div>
       )}
