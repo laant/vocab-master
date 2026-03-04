@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { getCurrentSession, saveSession, clearCurrentSession, getWordProgress, updateWordProgress, getReviewLevel, setReviewLevel } from "@/lib/storage";
 import { adjustReviewLevel } from "@/lib/review";
@@ -19,6 +19,7 @@ export default function MasteryPage() {
   const [masteredInStep5, setMasteredInStep5] = useState<string[]>([]);
   const [completed, setCompleted] = useState(false);
   const [isReviewSession, setIsReviewSession] = useState(false);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [gameResult, setGameResult] = useState<{
     xpGained: number;
     levelUp: boolean;
@@ -85,52 +86,65 @@ export default function MasteryPage() {
     }
   }, [router, saveWordProgressForSession]);
 
+  const completeSession = useCallback((sess: StudySession, mastered: string[]) => {
+    setCompleted(true);
+    const updated = { ...sess, currentStep: 5 };
+    saveSession(updated);
+    clearCurrentSession();
+    saveWordProgressForSession(updated, mastered);
+    const totalWords = sess.words.length;
+    const wrongInSteps = sess.wrongWords.length;
+    const recoveredInStep5 = mastered.length;
+    const correctOverall = totalWords - wrongInSteps + recoveredInStep5;
+    const accuracy = Math.round((correctOverall / totalWords) * 100);
+
+    if (isReviewSession) {
+      const newLevel = adjustReviewLevel(getReviewLevel(), accuracy);
+      setReviewLevel(newLevel);
+    }
+
+    const gr = processSessionComplete(updated, accuracy);
+    setGameResult(gr);
+  }, [isReviewSession, saveWordProgressForSession]);
+
   const handleCheck = useCallback(() => {
-    if (!wrongWordData[currentIndex]) return;
+    if (!wrongWordData[currentIndex] || !session) return;
 
     const correct = wrongWordData[currentIndex].word.toLowerCase();
-    if (userInput.trim().toLowerCase() === correct) {
+    const isCorrect = userInput.trim().toLowerCase() === correct;
+    const newMastered = isCorrect
+      ? [...masteredInStep5, wrongWordData[currentIndex].word]
+      : masteredInStep5;
+
+    if (isCorrect) {
       setAnswerState("correct");
       setMasteredCount((prev) => prev + 1);
-      setMasteredInStep5((prev) => [...prev, wrongWordData[currentIndex].word]);
+      setMasteredInStep5(newMastered);
     } else {
       setAnswerState("wrong");
     }
-  }, [userInput, wrongWordData, currentIndex]);
+
+    // 2초 후 자동 다음
+    timerRef.current = setTimeout(() => {
+      setUserInput("");
+      setAnswerState("idle");
+
+      if (currentIndex < wrongWordData.length - 1) {
+        setCurrentIndex(currentIndex + 1);
+      } else {
+        completeSession(session, newMastered);
+      }
+    }, 2000);
+  }, [userInput, wrongWordData, currentIndex, session, masteredInStep5, completeSession]);
+
+  // 타이머 정리
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+    };
+  }, []);
 
   if (!session) return null;
-
-  const handleNext = () => {
-    setUserInput("");
-    setAnswerState("idle");
-
-    if (currentIndex < wrongWordData.length - 1) {
-      setCurrentIndex(currentIndex + 1);
-    } else {
-      setCompleted(true);
-      // 세션 저장 + 단어별 진도 저장
-      const updated = { ...session, currentStep: 5 };
-      saveSession(updated);
-      clearCurrentSession();
-      saveWordProgressForSession(updated, masteredInStep5);
-      // 정답률 계산
-      const totalWords = session.words.length;
-      const wrongInSteps = session.wrongWords.length;
-      const recoveredInStep5 = masteredInStep5.length;
-      const correctOverall = totalWords - wrongInSteps + recoveredInStep5;
-      const accuracy = Math.round((correctOverall / totalWords) * 100);
-
-      // 복습 세션이면 레벨 조정
-      if (isReviewSession) {
-        const newLevel = adjustReviewLevel(getReviewLevel(), accuracy);
-        setReviewLevel(newLevel);
-      }
-
-      // 게이미피케이션
-      const gr = processSessionComplete(updated, accuracy);
-      setGameResult(gr);
-    }
-  };
 
   // 완료 화면
   if (completed) {
@@ -314,7 +328,7 @@ export default function MasteryPage() {
       </div>
 
       {/* 문제 카드 */}
-      <div className="bg-white rounded-2xl shadow-lg border border-slate-200 p-5 sm:p-8 md:p-12 flex flex-col items-center">
+      <div className="relative bg-white rounded-2xl shadow-lg border border-slate-200 p-5 sm:p-8 md:p-12 flex flex-col items-center">
         <p className="text-slate-400 text-sm mb-4">이 뜻의 영단어를 입력하세요</p>
 
         <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold mb-2 text-primary">
@@ -328,7 +342,6 @@ export default function MasteryPage() {
           onChange={(e) => setUserInput(e.target.value)}
           onKeyDown={(e) => {
             if (e.key === "Enter" && answerState === "idle") handleCheck();
-            if (e.key === "Enter" && answerState !== "idle") handleNext();
           }}
           placeholder="영단어를 입력하세요"
           disabled={answerState !== "idle"}
@@ -346,21 +359,14 @@ export default function MasteryPage() {
           </button>
         )}
 
+        {/* O/X 오버레이 */}
         {answerState !== "idle" && (
-          <div className="mt-6 text-center">
+          <div className="absolute inset-0 flex items-center justify-center rounded-2xl animate-[fadeIn_0.2s_ease-out] pointer-events-none">
             {answerState === "correct" ? (
-              <p className="text-green-500 font-bold text-lg mb-4">정답!</p>
+              <span className="text-green-400 text-[120px] font-bold leading-none select-none" style={{ textShadow: "0 2px 12px rgba(74,222,128,0.3)" }}>O</span>
             ) : (
-              <p className="text-red-500 font-bold text-lg mb-4">
-                정답: <span className="text-xl">{currentWord.word}</span>
-              </p>
+              <span className="text-red-400 text-[120px] font-bold leading-none select-none" style={{ textShadow: "0 2px 12px rgba(248,113,113,0.3)" }}>X</span>
             )}
-            <button
-              onClick={handleNext}
-              className="px-8 py-3 rounded-xl bg-primary text-white font-bold shadow-lg shadow-primary/20 hover:opacity-90 transition-opacity"
-            >
-              {currentIndex < wrongWordData.length - 1 ? "다음" : "결과 보기"}
-            </button>
           </div>
         )}
       </div>
