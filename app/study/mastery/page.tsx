@@ -20,6 +20,7 @@ export default function MasteryPage() {
   const [completed, setCompleted] = useState(false);
   const [isReviewSession, setIsReviewSession] = useState(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
   const [gameResult, setGameResult] = useState<{
     xpGained: number;
     levelUp: boolean;
@@ -143,6 +144,13 @@ export default function MasteryPage() {
       if (timerRef.current) clearTimeout(timerRef.current);
     };
   }, []);
+
+  // 문제 변경 시 input에 포커스
+  useEffect(() => {
+    if (answerState === "idle" && inputRef.current) {
+      inputRef.current.focus();
+    }
+  }, [currentIndex, answerState]);
 
   if (!session) return null;
 
@@ -337,6 +345,7 @@ export default function MasteryPage() {
         <p className="text-slate-400 text-sm mb-8">{currentWord.phonetic}</p>
 
         <input
+          ref={inputRef}
           type="text"
           value={userInput}
           onChange={(e) => setUserInput(e.target.value)}
