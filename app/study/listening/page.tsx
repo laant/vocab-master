@@ -26,6 +26,7 @@ export default function ListeningPage() {
   const [answerState, setAnswerState] = useState<AnswerState>("idle");
   const [wrongWords, setWrongWords] = useState<string[]>([]);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const generateChoices = useCallback(
     (s: StudySession, idx: number) => {
@@ -52,9 +53,7 @@ export default function ListeningPage() {
   const playAudio = useCallback((word: WordData) => {
     const url = getAudioUrl(word);
     if (url) {
-      if (audioRef.current) {
-        audioRef.current.pause();
-      }
+      if (audioRef.current) audioRef.current.pause();
       const audio = new Audio(url);
       audioRef.current = audio;
       audio.play().catch(() => {});
@@ -70,14 +69,26 @@ export default function ListeningPage() {
     setSession(s);
     setWrongWords(s.wrongWords || []);
     generateChoices(s, 0);
-    // 첫 단어 자동 재생
     playAudio(s.words[0]);
   }, [router, generateChoices, playAudio]);
+
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+    };
+  }, []);
 
   if (!session) return null;
 
   const currentWord = session.words[currentIndex];
   const total = session.words.length;
+
+  const resetCurrent = () => {
+    setSelected(null);
+    setAnswerState("idle");
+    generateChoices(session, currentIndex);
+    playAudio(currentWord);
+  };
 
   const handleSelect = (index: number) => {
     if (answerState !== "idle") return;
@@ -88,28 +99,30 @@ export default function ListeningPage() {
 
     if (isCorrect) {
       setAnswerState("correct");
+      // 2초 후 다음 문제
+      timerRef.current = setTimeout(() => {
+        setSelected(null);
+        setAnswerState("idle");
+        if (currentIndex < total - 1) {
+          const nextIdx = currentIndex + 1;
+          setCurrentIndex(nextIdx);
+          generateChoices(session, nextIdx);
+          playAudio(session.words[nextIdx]);
+        } else {
+          const updated = { ...session, currentStep: 5, wrongWords };
+          setCurrentSession(updated);
+          router.push("/study/mastery");
+        }
+      }, 2000);
     } else {
       setAnswerState("wrong");
       if (!wrongWords.includes(currentWord.word)) {
         setWrongWords((prev) => [...prev, currentWord.word]);
       }
-    }
-  };
-
-  const goNext = () => {
-    setSelected(null);
-    setAnswerState("idle");
-
-    if (currentIndex < total - 1) {
-      const nextIdx = currentIndex + 1;
-      setCurrentIndex(nextIdx);
-      generateChoices(session, nextIdx);
-      // 다음 단어 자동 재생
-      playAudio(session.words[nextIdx]);
-    } else {
-      const updated = { ...session, currentStep: 5, wrongWords };
-      setCurrentSession(updated);
-      router.push("/study/mastery");
+      // 3초 후 같은 문제 다시
+      timerRef.current = setTimeout(() => {
+        resetCurrent();
+      }, 3000);
     }
   };
 
@@ -134,8 +147,8 @@ export default function ListeningPage() {
         />
       </div>
 
-      {/* 문제 카드 — 스피커 아이콘 + 다시 듣기 */}
-      <div className="bg-white rounded-2xl shadow-lg border border-slate-200 p-5 sm:p-8 md:p-12 text-center mb-8">
+      {/* 문제 카드 — 스피커 아이콘 */}
+      <div className="relative bg-white rounded-2xl shadow-lg border border-slate-200 p-5 sm:p-8 md:p-12 text-center mb-8">
         <p className="text-slate-400 text-sm mb-6">발음을 듣고 뜻을 맞혀보세요</p>
 
         <button
@@ -157,14 +170,33 @@ export default function ListeningPage() {
           다시 듣기
         </button>
 
-        {/* 정답/오답 시 단어 공개 */}
-        {answerState !== "idle" && (
+        {/* 정답 시 단어 공개 */}
+        {answerState === "correct" && (
           <div className="mt-4 animate-[fadeIn_0.3s_ease-out]">
             <p className="text-2xl sm:text-3xl font-bold">{currentWord.word}</p>
             <p className="text-slate-400 text-sm">{currentWord.phonetic}</p>
           </div>
         )}
+
+        {/* O/X 오버레이 */}
+        {answerState !== "idle" && (
+          <div className="absolute inset-0 flex items-center justify-center rounded-2xl animate-[fadeIn_0.2s_ease-out] pointer-events-none">
+            {answerState === "correct" ? (
+              <span className="text-green-400 text-[120px] font-bold leading-none select-none" style={{ textShadow: "0 2px 12px rgba(74,222,128,0.3)" }}>O</span>
+            ) : (
+              <span className="text-red-400 text-[120px] font-bold leading-none select-none" style={{ textShadow: "0 2px 12px rgba(248,113,113,0.3)" }}>X</span>
+            )}
+          </div>
+        )}
       </div>
+
+      {/* 오답 메시지 */}
+      {answerState === "wrong" && (
+        <div className="text-center mb-4 animate-[fadeIn_0.2s_ease-out]">
+          <p className="text-red-500 font-bold text-lg">다시 들어보세요</p>
+          <p className="text-slate-400 text-sm mt-1">3초 후 다시 풀어보세요</p>
+        </div>
+      )}
 
       {/* 선택지 */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-8">
@@ -174,10 +206,11 @@ export default function ListeningPage() {
           let bgClass = "bg-white";
 
           if (answerState !== "idle") {
-            if (isCorrectChoice) {
+            if (answerState === "correct" && isCorrectChoice) {
               borderClass = "border-green-400";
               bgClass = "bg-green-50";
             } else if (i === selected && !isCorrectChoice) {
+              // 오답: 선택한 것만 빨간색, 정답 표시 안 함
               borderClass = "border-red-400";
               bgClass = "bg-red-50";
             } else {
@@ -200,7 +233,7 @@ export default function ListeningPage() {
                   {i + 1}
                 </span>
                 <span className="font-medium">{choice.label}</span>
-                {answerState !== "idle" && isCorrectChoice && (
+                {answerState === "correct" && isCorrectChoice && (
                   <span className="material-symbols-outlined text-green-500 ml-auto">
                     check_circle
                   </span>
@@ -215,25 +248,6 @@ export default function ListeningPage() {
           );
         })}
       </div>
-
-      {/* 피드백 & 다음 */}
-      {answerState !== "idle" && (
-        <div className="text-center">
-          {answerState === "correct" ? (
-            <p className="text-green-500 font-bold text-lg mb-4">정답!</p>
-          ) : (
-            <p className="text-red-500 font-bold text-lg mb-4">
-              오답! 정답은 &ldquo;{currentWord.korean || getFirstDefinition(currentWord)}&rdquo;
-            </p>
-          )}
-          <button
-            onClick={goNext}
-            className="px-8 py-3 rounded-xl bg-primary text-white font-bold shadow-lg shadow-primary/20 hover:opacity-90 transition-opacity"
-          >
-            {currentIndex < total - 1 ? "다음 문제" : "최종 확인으로"}
-          </button>
-        </div>
-      )}
     </div>
   );
 }
