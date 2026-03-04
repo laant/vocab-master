@@ -132,12 +132,15 @@ export default function RecallPage() {
 
     if (clickedLetter !== targetSlot.letter) {
       setAnswerState("wrong");
-      const newWrongs = wrongWords.includes(currentWord.word)
-        ? wrongWords
-        : [...wrongWords, currentWord.word];
-      setWrongWords(newWrongs);
+      if (!wrongWords.includes(currentWord.word)) {
+        setWrongWords((prev) => [...prev, currentWord.word]);
+      }
+      // 모든 글자 공개해서 정답 확인
       setSlots(slots.map((s) => ({ ...s, revealed: true })));
-      scheduleNext(newWrongs);
+      // 3초 후 같은 문제 다시 시작
+      timerRef.current = setTimeout(() => {
+        setupWord(currentWord.word);
+      }, 3000);
       return;
     }
 
@@ -245,14 +248,18 @@ export default function RecallPage() {
           </button>
         )}
 
-        {/* 정답/오답 오버레이 */}
-        {answerState !== "idle" && (
+        {/* 정답 오버레이 */}
+        {answerState === "correct" && (
           <div className="absolute inset-0 flex items-center justify-center rounded-2xl animate-[fadeIn_0.2s_ease-out]">
-            {answerState === "correct" ? (
-              <span className="text-green-400 text-[120px] font-bold leading-none select-none" style={{ textShadow: "0 2px 12px rgba(74,222,128,0.3)" }}>O</span>
-            ) : (
-              <span className="text-red-400 text-[120px] font-bold leading-none select-none" style={{ textShadow: "0 2px 12px rgba(248,113,113,0.3)" }}>X</span>
-            )}
+            <span className="text-green-400 text-[120px] font-bold leading-none select-none" style={{ textShadow: "0 2px 12px rgba(74,222,128,0.3)" }}>O</span>
+          </div>
+        )}
+
+        {/* 오답 메시지 (오버레이 없이 하단에 표시) */}
+        {answerState === "wrong" && (
+          <div className="mt-6 text-center animate-[fadeIn_0.2s_ease-out]">
+            <p className="text-red-500 font-bold text-lg">단어를 확인하세요</p>
+            <p className="text-slate-400 text-sm mt-1">3초 후 다시 풀어보세요</p>
           </div>
         )}
       </div>
