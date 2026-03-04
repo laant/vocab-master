@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { getCurrentSession, setCurrentSession } from "@/lib/storage";
-import { getFirstDefinition } from "@/lib/dictionary-api";
+import { getFirstDefinition, getAudioUrl } from "@/lib/dictionary-api";
 import { StudySession, WordData } from "@/types";
 
 function shuffle<T>(arr: T[]): T[] {
@@ -25,13 +25,24 @@ export default function QuizPage() {
   const [selected, setSelected] = useState<number | null>(null);
   const [answerState, setAnswerState] = useState<AnswerState>("idle");
   const [wrongWords, setWrongWords] = useState<string[]>([]);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const playAudio = useCallback((word: WordData) => {
+    const url = getAudioUrl(word);
+    if (url) {
+      if (audioRef.current) audioRef.current.pause();
+      const audio = new Audio(url);
+      audioRef.current = audio;
+      audio.play().catch(() => {});
+    }
+  }, []);
 
   const generateChoices = useCallback(
     (s: StudySession, idx: number) => {
       const currentWord = s.words[idx];
       const correctLabel = currentWord.korean || getFirstDefinition(currentWord);
 
-      // 나머지 단어에서 오답 3개 선택
       const others = s.words
         .filter((_, i) => i !== idx)
         .map((w) => ({
@@ -49,6 +60,25 @@ export default function QuizPage() {
     []
   );
 
+  const goNext = useCallback(() => {
+    if (timerRef.current) clearTimeout(timerRef.current);
+    setSelected(null);
+    setAnswerState("idle");
+
+    if (!session) return;
+
+    if (currentIndex < session.words.length - 1) {
+      const nextIdx = currentIndex + 1;
+      setCurrentIndex(nextIdx);
+      generateChoices(session, nextIdx);
+      playAudio(session.words[nextIdx]);
+    } else {
+      const updated = { ...session, currentStep: 3, wrongWords };
+      setCurrentSession(updated);
+      router.push("/study/recall");
+    }
+  }, [session, currentIndex, wrongWords, generateChoices, playAudio, router]);
+
   useEffect(() => {
     const s = getCurrentSession();
     if (!s) {
@@ -57,7 +87,15 @@ export default function QuizPage() {
     }
     setSession(s);
     generateChoices(s, 0);
-  }, [router, generateChoices]);
+    playAudio(s.words[0]);
+  }, [router, generateChoices, playAudio]);
+
+  // 타이머 정리
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+    };
+  }, []);
 
   if (!session) return null;
 
@@ -79,22 +117,24 @@ export default function QuizPage() {
         setWrongWords((prev) => [...prev, currentWord.word]);
       }
     }
-  };
 
-  const goNext = () => {
-    setSelected(null);
-    setAnswerState("idle");
+    // 2초 후 자동 다음 문제
+    timerRef.current = setTimeout(() => {
+      // goNext를 직접 호출하지 않고 상태 기반으로 처리
+      setSelected(null);
+      setAnswerState("idle");
 
-    if (currentIndex < total - 1) {
-      const nextIdx = currentIndex + 1;
-      setCurrentIndex(nextIdx);
-      generateChoices(session, nextIdx);
-    } else {
-      // 모든 문제를 풀었으면 Step 3로
-      const updated = { ...session, currentStep: 3, wrongWords };
-      setCurrentSession(updated);
-      router.push("/study/recall");
-    }
+      if (currentIndex < total - 1) {
+        const nextIdx = currentIndex + 1;
+        setCurrentIndex(nextIdx);
+        generateChoices(session, nextIdx);
+        playAudio(session.words[nextIdx]);
+      } else {
+        const updated = { ...session, currentStep: 3, wrongWords: isCorrect ? wrongWords : [...wrongWords, currentWord.word] };
+        setCurrentSession(updated);
+        router.push("/study/recall");
+      }
+    }, 2000);
   };
 
   return (
@@ -118,12 +158,40 @@ export default function QuizPage() {
         />
       </div>
 
-      {/* 문제 카드 */}
-      <div className="bg-white rounded-2xl shadow-lg border border-slate-200 p-5 sm:p-8 md:p-12 text-center mb-8">
+      {/* 문제 카드 + 오버레이 */}
+      <div className="relative bg-white rounded-2xl shadow-lg border border-slate-200 p-5 sm:p-8 md:p-12 text-center mb-8">
         <p className="text-slate-400 text-sm mb-4">이 단어의 뜻은?</p>
         <h1 className="text-3xl sm:text-5xl md:text-6xl font-bold mb-2">{currentWord.word}</h1>
         <p className="text-slate-400">{currentWord.phonetic}</p>
+
+        {/* 정답/오답 오버레이 */}
+        {answerState !== "idle" && (
+          <div className="absolute inset-0 flex items-center justify-center rounded-2xl animate-[fadeIn_0.2s_ease-out]">
+            {answerState === "correct" ? (
+              <div className="w-28 h-28 rounded-full border-[6px] border-green-400 bg-green-50/80 flex items-center justify-center">
+                <span className="material-symbols-outlined text-green-500 text-6xl" style={{ fontVariationSettings: "'FILL' 1" }}>
+                  check
+                </span>
+              </div>
+            ) : (
+              <div className="w-28 h-28 rounded-full border-[6px] border-red-400 bg-red-50/80 flex items-center justify-center">
+                <span className="material-symbols-outlined text-red-500 text-6xl" style={{ fontVariationSettings: "'FILL' 1" }}>
+                  close
+                </span>
+              </div>
+            )}
+          </div>
+        )}
       </div>
+
+      {/* 오답 시 정답 표시 */}
+      {answerState === "wrong" && (
+        <div className="text-center mb-4 animate-[fadeIn_0.2s_ease-out]">
+          <p className="text-red-500 font-bold">
+            정답: {currentWord.korean || getFirstDefinition(currentWord)}
+          </p>
+        </div>
+      )}
 
       {/* 선택지 */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-8">
@@ -174,25 +242,6 @@ export default function QuizPage() {
           );
         })}
       </div>
-
-      {/* 피드백 & 다음 */}
-      {answerState !== "idle" && (
-        <div className="text-center">
-          {answerState === "correct" ? (
-            <p className="text-green-500 font-bold text-lg mb-4">정답!</p>
-          ) : (
-            <p className="text-red-500 font-bold text-lg mb-4">
-              오답! 정답은 &ldquo;{currentWord.korean || getFirstDefinition(currentWord)}&rdquo;
-            </p>
-          )}
-          <button
-            onClick={goNext}
-            className="px-8 py-3 rounded-xl bg-primary text-white font-bold shadow-lg shadow-primary/20 hover:opacity-90 transition-opacity"
-          >
-            {currentIndex < total - 1 ? "다음 문제" : "다음 단계로"}
-          </button>
-        </div>
-      )}
     </div>
   );
 }
