@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { getFirstExample } from "@/lib/dictionary-api";
 import { processBonusComplete } from "@/lib/gamification";
@@ -31,6 +31,7 @@ export default function ContextPage() {
   const [correctCount, setCorrectCount] = useState(0);
   const [completed, setCompleted] = useState(false);
   const [bonusXp, setBonusXp] = useState(0);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const buildQuestions = useCallback((s: StudySession) => {
     const qs: Question[] = s.words.map((word) => {
@@ -58,8 +59,18 @@ export default function ContextPage() {
     setQuestions(qs);
   }, []);
 
+  // 같은 문제를 선택지만 다시 섞어서 재출제
+  const reshuffleCurrentQuestion = useCallback(() => {
+    if (questions.length === 0) return;
+    const q = questions[currentIndex];
+    const newQuestions = [...questions];
+    newQuestions[currentIndex] = { ...q, choices: shuffle(q.choices) };
+    setQuestions(newQuestions);
+    setSelected(null);
+    setAnswerState("idle");
+  }, [questions, currentIndex]);
+
   useEffect(() => {
-    // 보너스 세션 데이터에서 읽기
     const raw = localStorage.getItem("vocab_bonus_session");
     if (!raw) {
       router.push("/");
@@ -69,6 +80,12 @@ export default function ContextPage() {
     setSession(s);
     buildQuestions(s);
   }, [router, buildQuestions]);
+
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+    };
+  }, []);
 
   if (!session || questions.length === 0) return null;
 
@@ -82,24 +99,25 @@ export default function ContextPage() {
     if (choice === q.answer) {
       setAnswerState("correct");
       setCorrectCount((prev) => prev + 1);
+      // 2초 후 다음 문제
+      timerRef.current = setTimeout(() => {
+        setSelected(null);
+        setAnswerState("idle");
+        if (currentIndex < total - 1) {
+          setCurrentIndex(currentIndex + 1);
+        } else {
+          const result = processBonusComplete(correctCount + 1);
+          setBonusXp(result.xpGained);
+          setCompleted(true);
+          localStorage.removeItem("vocab_bonus_session");
+        }
+      }, 2000);
     } else {
-      // 오답이지만 기록하지 않음 (보너스 단계)
       setAnswerState("wrong");
-    }
-  };
-
-  const goNext = () => {
-    setSelected(null);
-    setAnswerState("idle");
-
-    if (currentIndex < total - 1) {
-      setCurrentIndex(currentIndex + 1);
-    } else {
-      // 보너스 완료 — XP 지급
-      const result = processBonusComplete(correctCount);
-      setBonusXp(result.xpGained);
-      setCompleted(true);
-      localStorage.removeItem("vocab_bonus_session");
+      // 3초 후 같은 문제 다시
+      timerRef.current = setTimeout(() => {
+        reshuffleCurrentQuestion();
+      }, 3000);
     }
   };
 
@@ -185,7 +203,7 @@ export default function ContextPage() {
       </div>
 
       {/* 문장 카드 */}
-      <div className="bg-white rounded-2xl shadow-lg border border-slate-200 p-5 sm:p-8 md:p-12 mb-8">
+      <div className="relative bg-white rounded-2xl shadow-lg border border-slate-200 p-5 sm:p-8 md:p-12 mb-8">
         <p className="text-slate-400 text-sm mb-6 text-center">빈칸에 들어갈 단어는?</p>
         <p className="text-xl md:text-2xl font-medium text-center leading-relaxed">
           {q.sentence.split("______").map((part, i, arr) => (
@@ -199,13 +217,32 @@ export default function ContextPage() {
                     ? "border-red-400 text-red-500"
                     : "border-amber-400 text-amber-600"
                 }`}>
-                  {answerState !== "idle" ? q.answer : selected || "?"}
+                  {answerState === "correct" ? q.answer : selected || "?"}
                 </span>
               )}
             </span>
           ))}
         </p>
+
+        {/* O/X 오버레이 */}
+        {answerState !== "idle" && (
+          <div className="absolute inset-0 flex items-center justify-center rounded-2xl animate-[fadeIn_0.2s_ease-out] pointer-events-none">
+            {answerState === "correct" ? (
+              <span className="text-green-400 text-[120px] font-bold leading-none select-none" style={{ textShadow: "0 2px 12px rgba(74,222,128,0.3)" }}>O</span>
+            ) : (
+              <span className="text-red-400 text-[120px] font-bold leading-none select-none" style={{ textShadow: "0 2px 12px rgba(248,113,113,0.3)" }}>X</span>
+            )}
+          </div>
+        )}
       </div>
+
+      {/* 오답 메시지 */}
+      {answerState === "wrong" && (
+        <div className="text-center mb-4 animate-[fadeIn_0.2s_ease-out]">
+          <p className="text-red-500 font-bold text-lg">다시 생각해보세요</p>
+          <p className="text-slate-400 text-sm mt-1">3초 후 다시 풀어보세요</p>
+        </div>
+      )}
 
       {/* 선택지 */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-8">
@@ -214,9 +251,9 @@ export default function ContextPage() {
           let style = "border-slate-200 bg-white hover:border-amber-400";
 
           if (answerState !== "idle") {
-            if (isCorrect) {
+            if (answerState === "correct" && isCorrect) {
               style = "border-green-400 bg-green-50";
-            } else if (choice === selected) {
+            } else if (choice === selected && !isCorrect) {
               style = "border-red-400 bg-red-50";
             } else {
               style = "border-slate-100 bg-slate-50 opacity-50";
@@ -233,7 +270,7 @@ export default function ContextPage() {
               className={`rounded-xl p-4 border-2 ${style} text-center font-medium transition-all`}
             >
               {choice}
-              {answerState !== "idle" && isCorrect && (
+              {answerState === "correct" && isCorrect && (
                 <span className="material-symbols-outlined text-green-500 ml-2 text-sm align-middle">
                   check_circle
                 </span>
@@ -242,25 +279,6 @@ export default function ContextPage() {
           );
         })}
       </div>
-
-      {/* 피드백 */}
-      {answerState !== "idle" && (
-        <div className="text-center">
-          {answerState === "correct" ? (
-            <p className="text-green-500 font-bold text-lg mb-4">정답! +10 XP</p>
-          ) : (
-            <p className="text-red-500 font-bold text-lg mb-4">
-              정답: {q.answer}
-            </p>
-          )}
-          <button
-            onClick={goNext}
-            className="px-8 py-3 rounded-xl bg-gradient-to-r from-amber-400 to-orange-500 text-white font-bold shadow-lg shadow-orange-500/20 hover:opacity-90 transition-opacity"
-          >
-            {currentIndex < total - 1 ? "다음 문제" : "결과 보기"}
-          </button>
-        </div>
-      )}
     </div>
   );
 }
