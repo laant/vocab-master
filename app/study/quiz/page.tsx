@@ -111,30 +111,35 @@ export default function QuizPage() {
 
     if (isCorrect) {
       setAnswerState("correct");
+      // 2초 후 다음 문제
+      timerRef.current = setTimeout(() => {
+        setSelected(null);
+        setAnswerState("idle");
+
+        if (currentIndex < total - 1) {
+          const nextIdx = currentIndex + 1;
+          setCurrentIndex(nextIdx);
+          generateChoices(session, nextIdx);
+          playAudio(session.words[nextIdx]);
+        } else {
+          const updated = { ...session, currentStep: 3, wrongWords };
+          setCurrentSession(updated);
+          router.push("/study/recall");
+        }
+      }, 2000);
     } else {
       setAnswerState("wrong");
       if (!wrongWords.includes(currentWord.word)) {
         setWrongWords((prev) => [...prev, currentWord.word]);
       }
+      // 3초 후 같은 문제 다시 (선택지 재섞기)
+      timerRef.current = setTimeout(() => {
+        setSelected(null);
+        setAnswerState("idle");
+        generateChoices(session, currentIndex);
+        playAudio(currentWord);
+      }, 3000);
     }
-
-    // 2초 후 자동 다음 문제
-    timerRef.current = setTimeout(() => {
-      // goNext를 직접 호출하지 않고 상태 기반으로 처리
-      setSelected(null);
-      setAnswerState("idle");
-
-      if (currentIndex < total - 1) {
-        const nextIdx = currentIndex + 1;
-        setCurrentIndex(nextIdx);
-        generateChoices(session, nextIdx);
-        playAudio(session.words[nextIdx]);
-      } else {
-        const updated = { ...session, currentStep: 3, wrongWords: isCorrect ? wrongWords : [...wrongWords, currentWord.word] };
-        setCurrentSession(updated);
-        router.push("/study/recall");
-      }
-    }, 2000);
   };
 
   return (
@@ -176,6 +181,14 @@ export default function QuizPage() {
         )}
       </div>
 
+      {/* 오답 메시지 */}
+      {answerState === "wrong" && (
+        <div className="text-center mb-4 animate-[fadeIn_0.2s_ease-out]">
+          <p className="text-red-500 font-bold text-lg">다시 생각해보세요</p>
+          <p className="text-slate-400 text-sm mt-1">3초 후 다시 풀어보세요</p>
+        </div>
+      )}
+
       {/* 선택지 */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-8">
         {choices.map((choice, i) => {
@@ -184,7 +197,7 @@ export default function QuizPage() {
           let bgClass = "bg-white";
 
           if (answerState !== "idle") {
-            if (isCorrectChoice) {
+            if (answerState === "correct" && isCorrectChoice) {
               borderClass = "border-green-400";
               bgClass = "bg-green-50";
             } else if (i === selected && !isCorrectChoice) {
@@ -210,7 +223,7 @@ export default function QuizPage() {
                   {i + 1}
                 </span>
                 <span className="font-medium">{choice.label}</span>
-                {answerState !== "idle" && isCorrectChoice && (
+                {answerState === "correct" && isCorrectChoice && (
                   <span className="material-symbols-outlined text-green-500 ml-auto">
                     check_circle
                   </span>
