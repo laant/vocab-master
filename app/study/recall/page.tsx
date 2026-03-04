@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { getCurrentSession, setCurrentSession } from "@/lib/storage";
-import { StudySession } from "@/types";
+import { getAudioUrl } from "@/lib/dictionary-api";
+import { StudySession, WordData } from "@/types";
 
 interface LetterSlot {
   letter: string;
@@ -20,13 +21,23 @@ export default function RecallPage() {
   const [currentBlankIdx, setCurrentBlankIdx] = useState(0);
   const [answerState, setAnswerState] = useState<"idle" | "correct" | "wrong">("idle");
   const [wrongWords, setWrongWords] = useState<string[]>([]);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const playAudio = useCallback((word: WordData) => {
+    const url = getAudioUrl(word);
+    if (url) {
+      if (audioRef.current) audioRef.current.pause();
+      const audio = new Audio(url);
+      audioRef.current = audio;
+      audio.play().catch(() => {});
+    }
+  }, []);
 
   const setupWord = useCallback((word: string) => {
     const letters = word.split("");
-    // 약 40% 빈칸으로
     const blankCount = Math.max(1, Math.ceil(letters.length * 0.4));
     const indices = Array.from({ length: letters.length }, (_, i) => i);
-    // 셔플해서 빈칸 위치 선택
     for (let i = indices.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
       [indices[i], indices[j]] = [indices[j], indices[i]];
@@ -39,7 +50,6 @@ export default function RecallPage() {
       isBlank: blankIndices.has(i),
     }));
 
-    // 빈칸 글자들 + 더미 글자로 뱅크 구성
     const blankLetters = newSlots
       .filter((s) => s.isBlank)
       .map((s) => s.letter);
@@ -57,6 +67,18 @@ export default function RecallPage() {
     setAnswerState("idle");
   }, []);
 
+  const goNextAuto = useCallback((sess: StudySession, idx: number, wrongs: string[]) => {
+    if (idx < sess.words.length - 1) {
+      const nextIdx = idx + 1;
+      setCurrentIndex(nextIdx);
+      setupWord(sess.words[nextIdx].word);
+    } else {
+      const updated = { ...sess, currentStep: 4, wrongWords: wrongs };
+      setCurrentSession(updated);
+      router.push("/study/listening");
+    }
+  }, [setupWord, router]);
+
   useEffect(() => {
     const s = getCurrentSession();
     if (!s) {
@@ -68,15 +90,26 @@ export default function RecallPage() {
     setupWord(s.words[0].word);
   }, [router, setupWord]);
 
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+    };
+  }, []);
+
   if (!session) return null;
 
   const currentWord = session.words[currentIndex];
   const total = session.words.length;
 
-  // 현재 빈칸 위치 찾기
   const blankSlots = slots
     .map((s, i) => ({ ...s, index: i }))
     .filter((s) => s.isBlank);
+
+  const scheduleNext = (newWrongs: string[]) => {
+    timerRef.current = setTimeout(() => {
+      goNextAuto(session, currentIndex, newWrongs);
+    }, 2000);
+  };
 
   const handleLetterClick = (bankIdx: number) => {
     if (answerState !== "idle") return;
@@ -86,7 +119,6 @@ export default function RecallPage() {
     const targetSlot = blankSlots[currentBlankIdx];
     const clickedLetter = letterBank[bankIdx].letter;
 
-    // 슬롯에 글자 넣기
     const newSlots = [...slots];
     newSlots[targetSlot.index] = {
       ...newSlots[targetSlot.index],
@@ -94,55 +126,33 @@ export default function RecallPage() {
     };
     setSlots(newSlots);
 
-    // 뱅크에서 사용 표시
     const newBank = [...letterBank];
     newBank[bankIdx] = { ...newBank[bankIdx], used: true };
     setLetterBank(newBank);
 
-    // 정답 체크
     if (clickedLetter !== targetSlot.letter) {
       setAnswerState("wrong");
-      if (!wrongWords.includes(currentWord.word)) {
-        setWrongWords((prev) => [...prev, currentWord.word]);
-      }
-      // 모든 글자 공개
+      const newWrongs = wrongWords.includes(currentWord.word)
+        ? wrongWords
+        : [...wrongWords, currentWord.word];
+      setWrongWords(newWrongs);
       setSlots(slots.map((s) => ({ ...s, revealed: true })));
+      scheduleNext(newWrongs);
       return;
     }
 
     const nextBlankIdx = currentBlankIdx + 1;
     setCurrentBlankIdx(nextBlankIdx);
 
-    // 모든 빈칸을 채웠으면 정답
     if (nextBlankIdx >= blankSlots.length) {
       setAnswerState("correct");
+      scheduleNext(wrongWords);
     }
   };
 
   const handleHint = () => {
-    if (currentBlankIdx >= blankSlots.length) return;
-    const targetSlot = blankSlots[currentBlankIdx];
-    const correctLetter = targetSlot.letter;
-
-    // 뱅크에서 정답 글자 찾아서 클릭
-    const bankIdx = letterBank.findIndex(
-      (b) => !b.used && b.letter === correctLetter
-    );
-    if (bankIdx >= 0) {
-      handleLetterClick(bankIdx);
-    }
-  };
-
-  const goNext = () => {
-    if (currentIndex < total - 1) {
-      const nextIdx = currentIndex + 1;
-      setCurrentIndex(nextIdx);
-      setupWord(session.words[nextIdx].word);
-    } else {
-      const updated = { ...session, currentStep: 4, wrongWords };
-      setCurrentSession(updated);
-      router.push("/study/listening");
-    }
+    if (answerState !== "idle") return;
+    playAudio(currentWord);
   };
 
   return (
@@ -167,7 +177,7 @@ export default function RecallPage() {
       </div>
 
       {/* 메인 카드 */}
-      <div className="bg-white rounded-2xl shadow-lg border border-slate-200 p-5 sm:p-8 md:p-12 flex flex-col items-center">
+      <div className="relative bg-white rounded-2xl shadow-lg border border-slate-200 p-5 sm:p-8 md:p-12 flex flex-col items-center">
         {/* 한글 뜻 */}
         <div className="text-center mb-8 sm:mb-10">
           <h1 className="text-2xl sm:text-4xl md:text-5xl font-bold mb-2">
@@ -224,32 +234,25 @@ export default function RecallPage() {
           </div>
         )}
 
-        {/* 힌트 & 정답 확인 */}
+        {/* 힌트 (발음 듣기) */}
         {answerState === "idle" && (
           <button
             onClick={handleHint}
             className="flex items-center gap-2 px-6 py-3 rounded-xl border-2 border-slate-200 font-bold text-slate-500 hover:bg-slate-50 transition-colors"
           >
-            <span className="material-symbols-outlined">lightbulb</span>
-            힌트
+            <span className="material-symbols-outlined">volume_up</span>
+            발음 듣기
           </button>
         )}
 
+        {/* 정답/오답 오버레이 */}
         {answerState !== "idle" && (
-          <div className="text-center">
+          <div className="absolute inset-0 flex items-center justify-center rounded-2xl animate-[fadeIn_0.2s_ease-out]">
             {answerState === "correct" ? (
-              <p className="text-green-500 font-bold text-lg mb-4">정답!</p>
+              <span className="text-green-400 text-[120px] font-bold leading-none select-none" style={{ textShadow: "0 2px 12px rgba(74,222,128,0.3)" }}>O</span>
             ) : (
-              <p className="text-red-500 font-bold text-lg mb-4">
-                정답: {currentWord.word}
-              </p>
+              <span className="text-red-400 text-[120px] font-bold leading-none select-none" style={{ textShadow: "0 2px 12px rgba(248,113,113,0.3)" }}>X</span>
             )}
-            <button
-              onClick={goNext}
-              className="px-8 py-3 rounded-xl bg-primary text-white font-bold shadow-lg shadow-primary/20 hover:opacity-90 transition-opacity"
-            >
-              {currentIndex < total - 1 ? "다음 문제" : "다음 단계로"}
-            </button>
           </div>
         )}
       </div>
