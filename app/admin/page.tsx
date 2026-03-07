@@ -3,7 +3,7 @@
 import { useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
-import { isAdmin, fetchAllGroups, createWordGroup, processWordGroup, deleteWordGroup, WordGroup } from '@/lib/admin';
+import { isAdmin, fetchAllGroups, createWordGroup, processWordGroup, deleteWordGroup, fetchCategories, WordGroup, CategoryInfo } from '@/lib/admin';
 
 export default function AdminPage() {
   const router = useRouter();
@@ -14,6 +14,8 @@ export default function AdminPage() {
   const [processing, setProcessing] = useState<string | null>(null);
   const [progress, setProgress] = useState({ current: 0, total: 0 });
   const [uploadResult, setUploadResult] = useState('');
+  const [categoryInput, setCategoryInput] = useState('');
+  const [existingCategories, setExistingCategories] = useState<CategoryInfo[]>([]);
 
   useEffect(() => {
     checkAuth();
@@ -33,6 +35,8 @@ export default function AdminPage() {
   async function loadGroups() {
     const data = await fetchAllGroups();
     setGroups(data);
+    const cats = await fetchCategories();
+    setExistingCategories(cats);
   }
 
   async function handleCSVUpload(e: React.ChangeEvent<HTMLInputElement>) {
@@ -49,7 +53,7 @@ export default function AdminPage() {
 
       const name = parts[0];
       const rawWords = parts.slice(1);
-      const result = await createWordGroup(name, rawWords);
+      const result = await createWordGroup(name, rawWords, categoryInput || undefined);
       if (result) created++;
     }
 
@@ -106,6 +110,28 @@ export default function AdminPage() {
         <p className="text-sm text-slate-500 mb-4">
           형식: <code className="bg-slate-100 px-2 py-0.5 rounded text-xs">그룹명,단어1,단어2,단어3,...</code> (한 줄에 한 그룹)
         </p>
+        <div className="mb-4">
+          <label className="text-sm font-medium text-slate-500 mb-1.5 block">카테고리</label>
+          <div className="flex items-center gap-2">
+            <select
+              value={categoryInput}
+              onChange={(e) => setCategoryInput(e.target.value)}
+              className="flex-1 px-3 py-2 rounded-lg border border-slate-200 text-sm focus:border-primary outline-none"
+            >
+              <option value="">카테고리 없음</option>
+              {existingCategories.map((cat) => (
+                <option key={cat.name} value={cat.name}>{cat.name}</option>
+              ))}
+            </select>
+            <input
+              type="text"
+              placeholder="새 카테고리"
+              value={existingCategories.some((c) => c.name === categoryInput) ? "" : categoryInput}
+              onChange={(e) => setCategoryInput(e.target.value)}
+              className="flex-1 px-3 py-2 rounded-lg border border-slate-200 text-sm focus:border-primary outline-none"
+            />
+          </div>
+        </div>
         <div className="flex items-center gap-3">
           <input
             ref={fileRef}
@@ -151,6 +177,7 @@ export default function AdminPage() {
                   </div>
                   <p className="text-xs text-slate-400">
                     {group.raw_words.length}단어 · {new Date(group.created_at).toLocaleDateString('ko-KR')}
+                    {group.category && <span className="ml-1 text-primary">· {group.category}</span>}
                   </p>
                   {group.status === 'ready' && group.words.length > 0 && (
                     <p className="text-xs text-slate-500 mt-1">

@@ -3,8 +3,9 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { fetchMultipleWords, translateMultipleWords, getFirstDefinition } from "@/lib/dictionary-api";
-import { saveSession, setCurrentSession, generateSessionId, getAllProgress } from "@/lib/storage";
-import { fetchReadyGroups, WordGroup } from "@/lib/admin";
+import { saveSession, setCurrentSession, generateSessionId, getAllProgress, getSessions } from "@/lib/storage";
+import { fetchCategories, fetchGroupsByCategory, CategoryInfo, WordGroup } from "@/lib/admin";
+import { getSelectedCategory, setSelectedCategory as saveSelectedCategory } from "@/lib/storage";
 import { WordData } from "@/types";
 
 export default function InputPage() {
@@ -17,10 +18,13 @@ export default function InputPage() {
   const [groupName, setGroupName] = useState("");
   const [reviewWords, setReviewWords] = useState<string[]>([]);
   const [tab, setTab] = useState<"manual" | "library">("manual");
-  const [wordGroups, setWordGroups] = useState<WordGroup[]>([]);
+  const [categories, setCategories] = useState<CategoryInfo[]>([]);
+  const [selectedCat, setSelectedCat] = useState<string | null>(null);
+  const [catGroups, setCatGroups] = useState<WordGroup[]>([]);
+  const [completedNames, setCompletedNames] = useState<Set<string>>(new Set());
   const [libraryLoading, setLibraryLoading] = useState(false);
 
-  // 이전 오답 단어 로드 + 단어장 목록 로드
+  // 이전 오답 단어 로드 + 카테고리/단어장 로드
   useEffect(() => {
     const progress = getAllProgress();
     const unmastered = progress
@@ -29,8 +33,41 @@ export default function InputPage() {
       .map((p) => p.word);
     setReviewWords(unmastered);
 
-    fetchReadyGroups().then(setWordGroups);
+    // 완료된 세션 이름 추적
+    const sessions = getSessions();
+    const names = new Set<string>();
+    for (const s of sessions) {
+      if (s.name && s.currentStep >= 5) names.add(s.name);
+    }
+    setCompletedNames(names);
+
+    // URL 파라미터로 탭 전환
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("tab") === "library") setTab("library");
+
+    // 카테고리 로드
+    fetchCategories().then((cats) => {
+      setCategories(cats);
+      // 이전에 선택한 카테고리가 있으면 바로 Day 목록 표시
+      const saved = getSelectedCategory();
+      if (saved) {
+        setSelectedCat(saved);
+        fetchGroupsByCategory(saved).then(setCatGroups);
+      }
+      // 카테고리가 1개면 자동 선택
+      if (!saved && cats.length === 1) {
+        setSelectedCat(cats[0].name);
+        saveSelectedCategory(cats[0].name);
+        fetchGroupsByCategory(cats[0].name).then(setCatGroups);
+      }
+    });
   }, []);
+
+  const handleSelectCategory = (catName: string) => {
+    setSelectedCat(catName);
+    saveSelectedCategory(catName);
+    fetchGroupsByCategory(catName).then(setCatGroups);
+  };
 
   // 단어장에서 바로 학습 시작
   const handleStartFromLibrary = (group: WordGroup) => {
@@ -154,7 +191,7 @@ export default function InputPage() {
         </div>
 
         {/* 탭 전환 */}
-        {wordGroups.length > 0 && (
+        {categories.length > 0 && (
           <div className="flex rounded-xl bg-slate-100 p-1 mb-6">
             <button
               onClick={() => setTab("manual")}
@@ -175,33 +212,96 @@ export default function InputPage() {
           </div>
         )}
 
-        {/* 단어장 라이브러리 */}
+        {/* 단어장 라이브러리 — 카테고리 → Day 2단계 */}
         {tab === "library" && (
           <div className="space-y-3 mb-6">
-            {wordGroups.map((group) => (
-              <button
-                key={group.id}
-                onClick={() => handleStartFromLibrary(group)}
-                disabled={libraryLoading}
-                className="w-full flex items-center justify-between bg-white rounded-xl p-5 shadow-sm border border-slate-200 hover:border-primary hover:shadow-md transition-all group text-left disabled:opacity-50"
-              >
-                <div className="flex items-center gap-4">
-                  <div className="flex items-center justify-center w-11 h-11 rounded-lg bg-primary/10 text-primary group-hover:bg-primary group-hover:text-white transition-colors">
-                    <span className="material-symbols-outlined">menu_book</span>
+            {!selectedCat ? (
+              /* 1단계: 카테고리 선택 */
+              categories.map((cat) => (
+                <button
+                  key={cat.name}
+                  onClick={() => handleSelectCategory(cat.name)}
+                  className="w-full flex items-center justify-between bg-white rounded-xl p-5 shadow-sm border border-slate-200 hover:border-primary hover:shadow-md transition-all group text-left"
+                >
+                  <div className="flex items-center gap-4">
+                    <div className="flex items-center justify-center w-11 h-11 rounded-lg bg-primary/10 text-primary group-hover:bg-primary group-hover:text-white transition-colors">
+                      <span className="material-symbols-outlined">library_books</span>
+                    </div>
+                    <div>
+                      <h3 className="font-bold">{cat.name}</h3>
+                      <p className="text-sm text-slate-500">
+                        {cat.groupCount}개 단어장 · {cat.totalWords}단어
+                      </p>
+                    </div>
                   </div>
-                  <div>
-                    <h3 className="font-bold">{group.name}</h3>
-                    <p className="text-sm text-slate-500">
-                      {group.words.length}단어 · {group.words.slice(0, 4).map((w) => w.word).join(", ")}
-                      {group.words.length > 4 && "..."}
-                    </p>
-                  </div>
-                </div>
-                <span className="material-symbols-outlined text-slate-400 group-hover:text-primary transition-colors">
-                  play_arrow
-                </span>
-              </button>
-            ))}
+                  <span className="material-symbols-outlined text-slate-400 group-hover:text-primary transition-colors">
+                    arrow_forward
+                  </span>
+                </button>
+              ))
+            ) : (
+              /* 2단계: 카테고리 내 Day 목록 */
+              <>
+                <button
+                  onClick={() => setSelectedCat(null)}
+                  className="flex items-center gap-1 text-sm text-slate-500 hover:text-primary transition-colors font-medium mb-2"
+                >
+                  <span className="material-symbols-outlined text-lg">arrow_back</span>
+                  카테고리 선택
+                </button>
+                <h3 className="font-bold text-lg mb-3">{selectedCat}</h3>
+                {catGroups.map((group) => {
+                  const isDone = completedNames.has(group.name);
+                  const isNext = !isDone && !catGroups.slice(0, catGroups.indexOf(group)).some((g) => !completedNames.has(g.name));
+
+                  return (
+                    <button
+                      key={group.id}
+                      onClick={() => handleStartFromLibrary(group)}
+                      disabled={libraryLoading}
+                      className={`w-full flex items-center justify-between rounded-xl p-5 shadow-sm border transition-all group text-left disabled:opacity-50 ${
+                        isNext
+                          ? "bg-primary/5 border-primary/30 hover:border-primary hover:shadow-md"
+                          : isDone
+                          ? "bg-slate-50 border-slate-100"
+                          : "bg-white border-slate-200 hover:border-primary hover:shadow-md"
+                      }`}
+                    >
+                      <div className="flex items-center gap-4">
+                        <div className={`flex items-center justify-center w-11 h-11 rounded-lg transition-colors ${
+                          isDone
+                            ? "bg-green-100 text-green-500"
+                            : isNext
+                            ? "bg-primary text-white"
+                            : "bg-primary/10 text-primary group-hover:bg-primary group-hover:text-white"
+                        }`}>
+                          <span className="material-symbols-outlined">
+                            {isDone ? "check_circle" : isNext ? "play_arrow" : "menu_book"}
+                          </span>
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <h3 className={`font-bold ${isDone ? "text-slate-400" : ""}`}>{group.name}</h3>
+                            {isNext && (
+                              <span className="px-2 py-0.5 rounded-full bg-primary/10 text-primary text-xs font-bold">다음 추천</span>
+                            )}
+                            {isDone && (
+                              <span className="px-2 py-0.5 rounded-full bg-green-100 text-green-600 text-xs font-bold">완료</span>
+                            )}
+                          </div>
+                          <p className="text-sm text-slate-500">{group.words.length}단어</p>
+                        </div>
+                      </div>
+                      <span className={`material-symbols-outlined transition-colors text-lg ${
+                        isDone ? "text-green-400" : "text-slate-400 group-hover:text-primary"
+                      }`}>
+                        {isDone ? "replay" : "play_arrow"}
+                      </span>
+                    </button>
+                  );
+                })}
+              </>
+            )}
           </div>
         )}
 

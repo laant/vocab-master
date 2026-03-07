@@ -4,7 +4,8 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { getSessions, getAllProgress, getReviewLevel, saveSession, setCurrentSession, generateSessionId } from "@/lib/storage";
-import { fetchReadyGroups, WordGroup } from "@/lib/admin";
+import { fetchGroupsByCategory, WordGroup } from "@/lib/admin";
+import { getSelectedCategory } from "@/lib/storage";
 import { getGroupedWords } from "@/lib/review";
 import { getDueWords } from "@/lib/spaced-repetition";
 import { getDailyStats, DailyStat } from "@/lib/stats";
@@ -49,6 +50,8 @@ export default function HomePage() {
   const [dailyStats, setDailyStats] = useState<DailyStat[]>([]);
   const [gameProfile, setGameProfile] = useState<GameProfile | null>(null);
   const [wordGroups, setWordGroups] = useState<WordGroup[]>([]);
+  const [selectedCategory, setSelectedCategoryState] = useState<string | null>(null);
+  const [completedGroupNames, setCompletedGroupNames] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     const allSessions = getSessions();
@@ -83,8 +86,21 @@ export default function HomePage() {
     // 게이미피케이션 프로필
     setGameProfile(getGameProfile());
 
-    // 추천 단어장
-    fetchReadyGroups().then(setWordGroups);
+    // 완료된 그룹명 추적
+    const completedNames = new Set<string>();
+    for (const s of allSessions) {
+      if (s.name && s.currentStep >= 5) {
+        completedNames.add(s.name);
+      }
+    }
+    setCompletedGroupNames(completedNames);
+
+    // 카테고리 기반 추천 단어장
+    const cat = getSelectedCategory();
+    setSelectedCategoryState(cat);
+    if (cat) {
+      fetchGroupsByCategory(cat).then(setWordGroups);
+    }
   }, []);
 
   const stats = calcStats(sessions);
@@ -279,49 +295,124 @@ export default function HomePage() {
         </button>
       )}
 
-      {/* 추천 단어장 */}
-      {wordGroups.length > 0 && (
-        <div className="bg-white rounded-xl p-6 shadow-sm border border-slate-200 mb-8">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2">
-              <span className="material-symbols-outlined text-primary">menu_book</span>
-              <h3 className="font-bold text-lg">추천 단어장</h3>
+      {/* 첫 방문 — 카테고리 선택 유도 */}
+      {sessions.length === 0 && !selectedCategory && (
+        <Link
+          href="/study/input?tab=library"
+          className="flex items-center justify-between bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-6 shadow-sm border border-blue-200 hover:border-blue-400 hover:shadow-md transition-all mb-8 group"
+        >
+          <div className="flex items-center gap-4">
+            <div className="flex items-center justify-center w-12 h-12 rounded-lg bg-blue-100 text-blue-600 group-hover:bg-blue-600 group-hover:text-white transition-colors">
+              <span className="material-symbols-outlined text-2xl">library_books</span>
             </div>
-            <Link href="/study/input" className="text-sm text-primary font-medium hover:underline">
-              전체보기
-            </Link>
+            <div>
+              <h3 className="font-bold text-lg">단어장을 선택하세요</h3>
+              <p className="text-slate-500 text-sm">학습할 단어장을 선택해서 시작해보세요</p>
+            </div>
           </div>
-          <div className="space-y-2">
-            {wordGroups.slice(0, 3).map((group) => (
-              <button
-                key={group.id}
-                onClick={() => {
-                  const session = {
-                    id: generateSessionId(),
-                    name: group.name,
-                    words: group.words,
-                    currentStep: 1,
-                    wrongWords: [],
-                    createdAt: new Date().toISOString(),
-                  };
-                  saveSession(session);
-                  setCurrentSession(session);
-                  router.push("/study/preview");
-                }}
-                className="w-full flex items-center justify-between p-3 rounded-lg hover:bg-slate-50 transition-colors text-left group/item"
-              >
-                <div>
-                  <p className="font-medium text-sm">{group.name}</p>
-                  <p className="text-xs text-slate-400">{group.words.length}단어</p>
-                </div>
-                <span className="material-symbols-outlined text-slate-300 group-hover/item:text-primary transition-colors text-lg">
-                  play_arrow
-                </span>
-              </button>
-            ))}
-          </div>
-        </div>
+          <span className="material-symbols-outlined text-slate-400 group-hover:text-blue-600 transition-colors">
+            arrow_forward
+          </span>
+        </Link>
       )}
+
+      {/* 카테고리 선택됨 — 다음 추천 Day */}
+      {selectedCategory && wordGroups.length > 0 && (() => {
+        const nextGroup = wordGroups.find((g) => !completedGroupNames.has(g.name));
+        const completedCount = wordGroups.filter((g) => completedGroupNames.has(g.name)).length;
+        const allDone = completedCount === wordGroups.length;
+
+        return (
+          <div className="bg-white rounded-xl p-6 shadow-sm border border-slate-200 mb-8">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <span className="material-symbols-outlined text-primary">menu_book</span>
+                <h3 className="font-bold text-lg">{selectedCategory}</h3>
+                <span className="text-xs text-slate-400">{completedCount}/{wordGroups.length}</span>
+              </div>
+              <Link href="/study/input?tab=library" className="text-sm text-primary font-medium hover:underline">
+                전체보기
+              </Link>
+            </div>
+
+            {allDone ? (
+              <div className="text-center py-4">
+                <span className="material-symbols-outlined text-4xl text-green-400 mb-2">celebration</span>
+                <p className="font-bold text-green-600">모든 Day를 완료했어요!</p>
+                <p className="text-sm text-slate-400 mt-1">처음부터 다시 학습할 수 있어요</p>
+              </div>
+            ) : nextGroup && (
+              <div className="space-y-2">
+                {/* 다음 추천 Day — 하이라이트 */}
+                <button
+                  onClick={() => {
+                    const session = {
+                      id: generateSessionId(),
+                      name: nextGroup.name,
+                      words: nextGroup.words,
+                      currentStep: 1,
+                      wrongWords: [],
+                      createdAt: new Date().toISOString(),
+                    };
+                    saveSession(session);
+                    setCurrentSession(session);
+                    router.push("/study/preview");
+                  }}
+                  className="w-full flex items-center justify-between p-4 rounded-xl bg-primary/5 border-2 border-primary/20 hover:border-primary hover:shadow-md transition-all text-left group/item"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-primary text-white">
+                      <span className="material-symbols-outlined">play_arrow</span>
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <p className="font-bold">{nextGroup.name}</p>
+                        <span className="px-2 py-0.5 rounded-full bg-primary/10 text-primary text-xs font-bold">다음 추천</span>
+                      </div>
+                      <p className="text-xs text-slate-400">{nextGroup.words.length}단어</p>
+                    </div>
+                  </div>
+                  <span className="material-symbols-outlined text-primary text-lg">
+                    arrow_forward
+                  </span>
+                </button>
+
+                {/* 그 다음 미완료 Day 2개 */}
+                {wordGroups
+                  .filter((g) => !completedGroupNames.has(g.name) && g.id !== nextGroup.id)
+                  .slice(0, 2)
+                  .map((group) => (
+                    <button
+                      key={group.id}
+                      onClick={() => {
+                        const session = {
+                          id: generateSessionId(),
+                          name: group.name,
+                          words: group.words,
+                          currentStep: 1,
+                          wrongWords: [],
+                          createdAt: new Date().toISOString(),
+                        };
+                        saveSession(session);
+                        setCurrentSession(session);
+                        router.push("/study/preview");
+                      }}
+                      className="w-full flex items-center justify-between p-3 rounded-lg hover:bg-slate-50 transition-colors text-left group/item"
+                    >
+                      <div>
+                        <p className="font-medium text-sm">{group.name}</p>
+                        <p className="text-xs text-slate-400">{group.words.length}단어</p>
+                      </div>
+                      <span className="material-symbols-outlined text-slate-300 group-hover/item:text-primary transition-colors text-lg">
+                        play_arrow
+                      </span>
+                    </button>
+                  ))}
+              </div>
+            )}
+          </div>
+        );
+      })()}
 
       {/* 새 학습 시작 */}
       <Link

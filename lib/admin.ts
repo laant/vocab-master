@@ -14,7 +14,14 @@ export interface WordGroup {
   words: WordData[];
   raw_words: string[];
   status: 'pending' | 'ready';
+  category?: string;
   created_at: string;
+}
+
+export interface CategoryInfo {
+  name: string;
+  groupCount: number;
+  totalWords: number;
 }
 
 export async function fetchAllGroups(): Promise<WordGroup[]> {
@@ -36,10 +43,43 @@ export async function fetchReadyGroups(): Promise<WordGroup[]> {
   return data as WordGroup[];
 }
 
-export async function createWordGroup(name: string, rawWords: string[]): Promise<WordGroup | null> {
+export async function fetchCategories(): Promise<CategoryInfo[]> {
+  const groups = await fetchReadyGroups();
+  const categoryMap = new Map<string, { groupCount: number; totalWords: number }>();
+
+  for (const group of groups) {
+    const cat = group.category || '미분류';
+    const existing = categoryMap.get(cat) || { groupCount: 0, totalWords: 0 };
+    existing.groupCount++;
+    existing.totalWords += group.words?.length || 0;
+    categoryMap.set(cat, existing);
+  }
+
+  return Array.from(categoryMap.entries()).map(([name, info]) => ({
+    name,
+    groupCount: info.groupCount,
+    totalWords: info.totalWords,
+  }));
+}
+
+export async function fetchGroupsByCategory(category: string): Promise<WordGroup[]> {
   const { data, error } = await supabase
     .from('word_groups')
-    .insert({ name, raw_words: rawWords, status: 'pending' })
+    .select('*')
+    .eq('status', 'ready')
+    .eq('category', category)
+    .order('name', { ascending: true });
+  if (error || !data) return [];
+  // 자연 정렬 (Middle Day 1, 2, ... 10, 11)
+  return (data as WordGroup[]).sort((a, b) => {
+    return a.name.localeCompare(b.name, undefined, { numeric: true });
+  });
+}
+
+export async function createWordGroup(name: string, rawWords: string[], category?: string): Promise<WordGroup | null> {
+  const { data, error } = await supabase
+    .from('word_groups')
+    .insert({ name, raw_words: rawWords, status: 'pending', ...(category ? { category } : {}) })
     .select()
     .single();
   if (error || !data) return null;

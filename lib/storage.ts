@@ -7,6 +7,7 @@ const STORAGE_KEYS = {
   CURRENT_SESSION: 'vocab_current_session',
   REVIEW_LEVEL: 'vocab_review_level',
   GAME_PROFILE: 'vocab_game_profile',
+  SELECTED_CATEGORY: 'vocab_selected_category',
 } as const;
 
 // 세션 관련
@@ -75,6 +76,17 @@ export function getReviewLevel(): ReviewLevel {
 
 export function setReviewLevel(level: ReviewLevel): void {
   localStorage.setItem(STORAGE_KEYS.REVIEW_LEVEL, level);
+  debouncedSync();
+}
+
+// 선택된 카테고리
+export function getSelectedCategory(): string | null {
+  if (typeof window === 'undefined') return null;
+  return localStorage.getItem(STORAGE_KEYS.SELECTED_CATEGORY);
+}
+
+export function setSelectedCategory(category: string): void {
+  localStorage.setItem(STORAGE_KEYS.SELECTED_CATEGORY, category);
   debouncedSync();
 }
 
