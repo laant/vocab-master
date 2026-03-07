@@ -77,6 +77,18 @@ export function getFirstExample(word: WordData): string | null {
 
 // Google Translate API로 영어 → 한국어 번역
 export async function translateToKorean(word: string): Promise<string> {
+  // 1차: 네이버 사전 (옥스퍼드 영한사전 기반)
+  try {
+    const res = await fetch(`/api/dict?q=${encodeURIComponent(word)}`);
+    if (res.ok) {
+      const data = await res.json();
+      if (data.meaning) return data.meaning;
+    }
+  } catch {
+    // fallback to Google Translate
+  }
+
+  // 2차: Google Translate (fallback)
   try {
     const res = await fetch(
       `https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl=ko&dt=t&q=${encodeURIComponent(word)}`
