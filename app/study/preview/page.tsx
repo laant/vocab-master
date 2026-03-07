@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { getCurrentSession, setCurrentSession } from "@/lib/storage";
-import { getFirstDefinition, getFirstExample, playWordAudio } from "@/lib/dictionary-api";
+import { getAudioUrl, getFirstDefinition, getFirstExample } from "@/lib/dictionary-api";
 import { StudySession, WordData } from "@/types";
 
 export default function PreviewPage() {
@@ -25,15 +25,24 @@ export default function PreviewPage() {
   useEffect(() => {
     if (!session) return;
     const word = session.words[currentIndex];
-    playWordAudio(word);
+    const url = getAudioUrl(word);
+    if (url) {
+      const audio = new Audio(url);
+      audio.play().catch(() => {});
+    }
   }, [session, currentIndex]);
 
   if (!session) return null;
 
   const word = session.words[currentIndex];
   const total = session.words.length;
+  const audioUrl = getAudioUrl(word);
+
   const playAudio = () => {
-    playWordAudio(word);
+    if (audioUrl) {
+      const audio = new Audio(audioUrl);
+      audio.play();
+    }
   };
 
   const goNext = () => {
@@ -82,15 +91,17 @@ export default function PreviewPage() {
         className="bg-white rounded-2xl shadow-lg border border-slate-200 p-5 sm:p-8 md:p-12 min-h-[300px] sm:min-h-[400px] flex flex-col items-center pt-12 sm:pt-16 cursor-pointer select-none transition-all hover:shadow-xl relative"
       >
         {/* 오디오 버튼 */}
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            playAudio();
-          }}
-          className="absolute top-6 right-6 p-3 rounded-full bg-slate-50 text-slate-500 hover:bg-primary/10 hover:text-primary transition-all"
-        >
-          <span className="material-symbols-outlined text-2xl">volume_up</span>
-        </button>
+        {audioUrl && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              playAudio();
+            }}
+            className="absolute top-6 right-6 p-3 rounded-full bg-slate-50 text-slate-500 hover:bg-primary/10 hover:text-primary transition-all"
+          >
+            <span className="material-symbols-outlined text-2xl">volume_up</span>
+          </button>
+        )}
 
         {/* 단어 & 발음기호: 항상 같은 위치 */}
         <div className="text-center mb-4">

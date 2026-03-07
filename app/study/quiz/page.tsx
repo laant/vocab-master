@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { getCurrentSession, setCurrentSession } from "@/lib/storage";
-import { getFirstDefinition, playWordAudio } from "@/lib/dictionary-api";
+import { getFirstDefinition, getAudioUrl } from "@/lib/dictionary-api";
 import { StudySession, WordData } from "@/types";
 
 function shuffle<T>(arr: T[]): T[] {
@@ -29,7 +29,13 @@ export default function QuizPage() {
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const playAudio = useCallback((word: WordData) => {
-    playWordAudio(word, audioRef);
+    const url = getAudioUrl(word);
+    if (url) {
+      if (audioRef.current) audioRef.current.pause();
+      const audio = new Audio(url);
+      audioRef.current = audio;
+      audio.play().catch(() => {});
+    }
   }, []);
 
   const generateChoices = useCallback(
