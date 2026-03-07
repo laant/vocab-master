@@ -18,8 +18,17 @@ export interface WordGroup {
   created_at: string;
 }
 
+export interface CategoryMeta {
+  id: string;
+  name: string;
+  is_public: boolean;
+  allowed_emails: string[];
+  created_at: string;
+}
+
 export interface CategoryInfo {
   name: string;
+  is_public: boolean;
   groupCount: number;
   totalWords: number;
 }
@@ -43,23 +52,98 @@ export async function fetchReadyGroups(): Promise<WordGroup[]> {
   return data as WordGroup[];
 }
 
-export async function fetchCategories(): Promise<CategoryInfo[]> {
+// 카테고리 메타데이터 CRUD
+export async function fetchAllCategoryMetas(): Promise<CategoryMeta[]> {
+  const { data, error } = await supabase
+    .from('word_group_categories')
+    .select('*')
+    .order('created_at', { ascending: true });
+  if (error || !data) return [];
+  return data as CategoryMeta[];
+}
+
+export async function createCategory(name: string, isPublic: boolean, allowedEmails: string[]): Promise<CategoryMeta | null> {
+  const { data, error } = await supabase
+    .from('word_group_categories')
+    .insert({ name, is_public: isPublic, allowed_emails: allowedEmails })
+    .select()
+    .single();
+  if (error || !data) return null;
+  return data as CategoryMeta;
+}
+
+export async function updateCategory(id: string, updates: { is_public?: boolean; allowed_emails?: string[] }): Promise<boolean> {
+  const { error } = await supabase
+    .from('word_group_categories')
+    .update(updates)
+    .eq('id', id);
+  return !error;
+}
+
+export async function deleteCategory(id: string): Promise<boolean> {
+  const { error } = await supabase
+    .from('word_group_categories')
+    .delete()
+    .eq('id', id);
+  return !error;
+}
+
+// 사용자에게 보이는 카테고리 목록 (공개 + 권한 있는 비공개)
+export async function fetchVisibleCategories(userEmail?: string | null): Promise<CategoryInfo[]> {
+  // 1. 카테고리 메타 조회
+  const metas = await fetchAllCategoryMetas();
+
+  // 2. 비공개 카테고리 접근 권한 확인
+  let teacherEmails: string[] = [];
+  if (userEmail) {
+    const { data } = await supabase
+      .from('teacher_students')
+      .select('teacher_email')
+      .eq('student_email', userEmail);
+    teacherEmails = (data || []).map((d: { teacher_email: string }) => d.teacher_email);
+  }
+
+  const visibleCategoryNames: string[] = [];
+  const categoryPublicMap = new Map<string, boolean>();
+
+  for (const meta of metas) {
+    if (meta.is_public) {
+      visibleCategoryNames.push(meta.name);
+      categoryPublicMap.set(meta.name, true);
+    } else if (userEmail) {
+      // 관리자이거나, 허용 이메일에 포함되거나, 허용된 선생님의 학생인 경우
+      const isAdminUser = isAdmin(userEmail);
+      const isAllowed = meta.allowed_emails.includes(userEmail);
+      const hasAllowedTeacher = teacherEmails.some((te) => meta.allowed_emails.includes(te));
+
+      if (isAdminUser || isAllowed || hasAllowedTeacher) {
+        visibleCategoryNames.push(meta.name);
+        categoryPublicMap.set(meta.name, false);
+      }
+    }
+  }
+
+  // 3. 해당 카테고리의 그룹 수/단어 수 집계
   const groups = await fetchReadyGroups();
   const categoryMap = new Map<string, { groupCount: number; totalWords: number }>();
 
   for (const group of groups) {
-    const cat = group.category || '미분류';
+    const cat = group.category;
+    if (!cat || !visibleCategoryNames.includes(cat)) continue;
     const existing = categoryMap.get(cat) || { groupCount: 0, totalWords: 0 };
     existing.groupCount++;
     existing.totalWords += group.words?.length || 0;
     categoryMap.set(cat, existing);
   }
 
-  return Array.from(categoryMap.entries()).map(([name, info]) => ({
-    name,
-    groupCount: info.groupCount,
-    totalWords: info.totalWords,
-  }));
+  return visibleCategoryNames
+    .filter((name) => categoryMap.has(name))
+    .map((name) => ({
+      name,
+      is_public: categoryPublicMap.get(name) ?? true,
+      groupCount: categoryMap.get(name)!.groupCount,
+      totalWords: categoryMap.get(name)!.totalWords,
+    }));
 }
 
 export async function fetchGroupsByCategory(category: string): Promise<WordGroup[]> {

@@ -4,7 +4,8 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { fetchMultipleWords, translateMultipleWords, getFirstDefinition } from "@/lib/dictionary-api";
 import { saveSession, setCurrentSession, generateSessionId, getAllProgress, getSessions } from "@/lib/storage";
-import { fetchCategories, fetchGroupsByCategory, CategoryInfo, WordGroup } from "@/lib/admin";
+import { fetchVisibleCategories, fetchGroupsByCategory, CategoryInfo, WordGroup } from "@/lib/admin";
+import { supabase } from "@/lib/supabase";
 import { getSelectedCategory, setSelectedCategory as saveSelectedCategory } from "@/lib/storage";
 import { WordData } from "@/types";
 
@@ -45,21 +46,26 @@ export default function InputPage() {
     const params = new URLSearchParams(window.location.search);
     if (params.get("tab") === "library") setTab("library");
 
-    // 카테고리 로드
-    fetchCategories().then((cats) => {
-      setCategories(cats);
-      // 이전에 선택한 카테고리가 있으면 바로 Day 목록 표시
-      const saved = getSelectedCategory();
-      if (saved) {
-        setSelectedCat(saved);
-        fetchGroupsByCategory(saved).then(setCatGroups);
-      }
-      // 카테고리가 1개면 자동 선택
-      if (!saved && cats.length === 1) {
-        setSelectedCat(cats[0].name);
-        saveSelectedCategory(cats[0].name);
-        fetchGroupsByCategory(cats[0].name).then(setCatGroups);
-      }
+    // 카테고리 로드 (사용자 권한 기반)
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      fetchVisibleCategories(user?.email).then((cats) => {
+        setCategories(cats);
+        // 이전에 선택한 카테고리가 있으면 바로 Day 목록 표시
+        const saved = getSelectedCategory();
+        if (saved && cats.some((c) => c.name === saved)) {
+          setSelectedCat(saved);
+          fetchGroupsByCategory(saved).then(setCatGroups);
+        } else if (saved && !cats.some((c) => c.name === saved)) {
+          // 저장된 카테고리에 접근 권한이 없으면 초기화
+          setSelectedCat(null);
+        }
+        // 카테고리가 1개면 자동 선택
+        if (!saved && cats.length === 1) {
+          setSelectedCat(cats[0].name);
+          saveSelectedCategory(cats[0].name);
+          fetchGroupsByCategory(cats[0].name).then(setCatGroups);
+        }
+      });
     });
   }, []);
 
@@ -228,7 +234,12 @@ export default function InputPage() {
                       <span className="material-symbols-outlined">library_books</span>
                     </div>
                     <div>
-                      <h3 className="font-bold">{cat.name}</h3>
+                      <div className="flex items-center gap-2">
+                        <h3 className="font-bold">{cat.name}</h3>
+                        {!cat.is_public && (
+                          <span className="material-symbols-outlined text-orange-400 text-base">lock</span>
+                        )}
+                      </div>
                       <p className="text-sm text-slate-500">
                         {cat.groupCount}개 단어장 · {cat.totalWords}단어
                       </p>

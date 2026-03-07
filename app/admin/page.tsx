@@ -3,7 +3,7 @@
 import { useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
-import { isAdmin, fetchAllGroups, createWordGroup, processWordGroup, deleteWordGroup, fetchCategories, WordGroup, CategoryInfo } from '@/lib/admin';
+import { isAdmin, fetchAllGroups, createWordGroup, processWordGroup, deleteWordGroup, fetchAllCategoryMetas, createCategory, updateCategory, deleteCategory as deleteCategoryApi, WordGroup, CategoryMeta } from '@/lib/admin';
 
 export default function AdminPage() {
   const router = useRouter();
@@ -15,7 +15,14 @@ export default function AdminPage() {
   const [progress, setProgress] = useState({ current: 0, total: 0 });
   const [uploadResult, setUploadResult] = useState('');
   const [categoryInput, setCategoryInput] = useState('');
-  const [existingCategories, setExistingCategories] = useState<CategoryInfo[]>([]);
+  const [categoryMetas, setCategoryMetas] = useState<CategoryMeta[]>([]);
+  // 새 카테고리 생성 폼
+  const [newCatName, setNewCatName] = useState('');
+  const [newCatPublic, setNewCatPublic] = useState(true);
+  const [newCatEmails, setNewCatEmails] = useState('');
+  // 카테고리 편집
+  const [editingCat, setEditingCat] = useState<string | null>(null);
+  const [editEmails, setEditEmails] = useState('');
 
   useEffect(() => {
     checkAuth();
@@ -35,8 +42,8 @@ export default function AdminPage() {
   async function loadGroups() {
     const data = await fetchAllGroups();
     setGroups(data);
-    const cats = await fetchCategories();
-    setExistingCategories(cats);
+    const metas = await fetchAllCategoryMetas();
+    setCategoryMetas(metas);
   }
 
   async function handleCSVUpload(e: React.ChangeEvent<HTMLInputElement>) {
@@ -112,25 +119,18 @@ export default function AdminPage() {
         </p>
         <div className="mb-4">
           <label className="text-sm font-medium text-slate-500 mb-1.5 block">카테고리</label>
-          <div className="flex items-center gap-2">
-            <select
-              value={categoryInput}
-              onChange={(e) => setCategoryInput(e.target.value)}
-              className="flex-1 px-3 py-2 rounded-lg border border-slate-200 text-sm focus:border-primary outline-none"
-            >
-              <option value="">카테고리 없음</option>
-              {existingCategories.map((cat) => (
-                <option key={cat.name} value={cat.name}>{cat.name}</option>
-              ))}
-            </select>
-            <input
-              type="text"
-              placeholder="새 카테고리"
-              value={existingCategories.some((c) => c.name === categoryInput) ? "" : categoryInput}
-              onChange={(e) => setCategoryInput(e.target.value)}
-              className="flex-1 px-3 py-2 rounded-lg border border-slate-200 text-sm focus:border-primary outline-none"
-            />
-          </div>
+          <select
+            value={categoryInput}
+            onChange={(e) => setCategoryInput(e.target.value)}
+            className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:border-primary outline-none"
+          >
+            <option value="">카테고리 없음</option>
+            {categoryMetas.map((cat) => (
+              <option key={cat.id} value={cat.name}>
+                {cat.name} {cat.is_public ? '(공개)' : '(비공개)'}
+              </option>
+            ))}
+          </select>
         </div>
         <div className="flex items-center gap-3">
           <input
@@ -143,6 +143,165 @@ export default function AdminPage() {
         </div>
         {uploadResult && (
           <p className="text-sm text-green-600 mt-3 font-medium">{uploadResult}</p>
+        )}
+      </div>
+
+      {/* 카테고리 관리 */}
+      <div className="bg-white rounded-xl p-6 shadow-sm border border-slate-200 mb-6">
+        <h3 className="font-bold mb-4">카테고리 관리</h3>
+
+        {/* 새 카테고리 생성 */}
+        <div className="bg-slate-50 rounded-lg p-4 mb-4">
+          <p className="text-sm font-medium text-slate-600 mb-3">새 카테고리 추가</p>
+          <div className="flex flex-col gap-3">
+            <input
+              type="text"
+              value={newCatName}
+              onChange={(e) => setNewCatName(e.target.value)}
+              placeholder="카테고리 이름 (예: 고등필수 800)"
+              className="px-3 py-2 rounded-lg border border-slate-200 text-sm focus:border-primary outline-none"
+            />
+            <div className="flex items-center gap-4">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="radio"
+                  checked={newCatPublic}
+                  onChange={() => setNewCatPublic(true)}
+                  className="accent-primary"
+                />
+                <span className="text-sm">공개</span>
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="radio"
+                  checked={!newCatPublic}
+                  onChange={() => setNewCatPublic(false)}
+                  className="accent-primary"
+                />
+                <span className="text-sm">비공개</span>
+              </label>
+            </div>
+            {!newCatPublic && (
+              <input
+                type="text"
+                value={newCatEmails}
+                onChange={(e) => setNewCatEmails(e.target.value)}
+                placeholder="허용 이메일 (쉼표 구분: a@x.com, b@x.com)"
+                className="px-3 py-2 rounded-lg border border-slate-200 text-sm focus:border-primary outline-none"
+              />
+            )}
+            <button
+              onClick={async () => {
+                if (!newCatName.trim()) return;
+                const emails = newCatEmails.split(',').map((e) => e.trim()).filter(Boolean);
+                const result = await createCategory(newCatName.trim(), newCatPublic, newCatPublic ? [] : emails);
+                if (result) {
+                  setNewCatName('');
+                  setNewCatEmails('');
+                  setNewCatPublic(true);
+                  await loadGroups();
+                } else {
+                  alert('카테고리 생성에 실패했습니다.');
+                }
+              }}
+              disabled={!newCatName.trim()}
+              className="self-start px-4 py-2 rounded-lg bg-primary text-white text-sm font-bold hover:bg-primary/90 disabled:opacity-50"
+            >
+              카테고리 추가
+            </button>
+          </div>
+        </div>
+
+        {/* 기존 카테고리 목록 */}
+        {categoryMetas.length > 0 && (
+          <div className="space-y-2">
+            {categoryMetas.map((cat) => (
+              <div key={cat.id} className="flex items-start justify-between p-3 rounded-lg border border-slate-100 hover:border-slate-200 transition-colors">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-1">
+                    <h4 className="font-bold text-sm">{cat.name}</h4>
+                    <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${
+                      cat.is_public
+                        ? 'bg-green-50 text-green-600 border border-green-200'
+                        : 'bg-orange-50 text-orange-600 border border-orange-200'
+                    }`}>
+                      {cat.is_public ? '공개' : '비공개'}
+                    </span>
+                  </div>
+                  {!cat.is_public && (
+                    editingCat === cat.id ? (
+                      <div className="flex items-center gap-2 mt-2">
+                        <input
+                          type="text"
+                          value={editEmails}
+                          onChange={(e) => setEditEmails(e.target.value)}
+                          placeholder="허용 이메일 (쉼표 구분)"
+                          className="flex-1 px-2 py-1.5 rounded border border-slate-200 text-xs focus:border-primary outline-none"
+                        />
+                        <button
+                          onClick={async () => {
+                            const emails = editEmails.split(',').map((e) => e.trim()).filter(Boolean);
+                            await updateCategory(cat.id, { allowed_emails: emails });
+                            setEditingCat(null);
+                            await loadGroups();
+                          }}
+                          className="px-3 py-1.5 rounded bg-primary text-white text-xs font-bold"
+                        >
+                          저장
+                        </button>
+                        <button
+                          onClick={() => setEditingCat(null)}
+                          className="px-3 py-1.5 rounded text-slate-400 text-xs font-bold hover:text-slate-600"
+                        >
+                          취소
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="mt-1">
+                        <p className="text-xs text-slate-400">
+                          허용: {cat.allowed_emails.length > 0 ? cat.allowed_emails.join(', ') : '없음'}
+                          {' '}
+                          <button
+                            onClick={() => {
+                              setEditingCat(cat.id);
+                              setEditEmails(cat.allowed_emails.join(', '));
+                            }}
+                            className="text-primary hover:underline"
+                          >
+                            수정
+                          </button>
+                        </p>
+                      </div>
+                    )
+                  )}
+                </div>
+                <div className="flex items-center gap-2 ml-3">
+                  <button
+                    onClick={async () => {
+                      await updateCategory(cat.id, { is_public: !cat.is_public });
+                      await loadGroups();
+                    }}
+                    className="p-1.5 rounded-lg text-slate-400 hover:text-primary hover:bg-primary/10 transition-colors"
+                    title={cat.is_public ? '비공개로 전환' : '공개로 전환'}
+                  >
+                    <span className="material-symbols-outlined text-lg">
+                      {cat.is_public ? 'lock_open' : 'lock'}
+                    </span>
+                  </button>
+                  <button
+                    onClick={async () => {
+                      if (!confirm(`"${cat.name}" 카테고리를 삭제할까요?`)) return;
+                      await deleteCategoryApi(cat.id);
+                      await loadGroups();
+                    }}
+                    className="p-1.5 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors"
+                  >
+                    <span className="material-symbols-outlined text-lg">delete</span>
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
         )}
       </div>
 

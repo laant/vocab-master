@@ -4,8 +4,9 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { getSessions, getAllProgress, getReviewLevel, saveSession, setCurrentSession, generateSessionId } from "@/lib/storage";
-import { fetchGroupsByCategory, WordGroup } from "@/lib/admin";
-import { getSelectedCategory } from "@/lib/storage";
+import { fetchGroupsByCategory, fetchVisibleCategories, WordGroup, CategoryInfo } from "@/lib/admin";
+import { getSelectedCategory, setSelectedCategory as saveSelectedCategory } from "@/lib/storage";
+import { supabase } from "@/lib/supabase";
 import { getGroupedWords } from "@/lib/review";
 import { getDueWords } from "@/lib/spaced-repetition";
 import { getDailyStats, DailyStat } from "@/lib/stats";
@@ -51,6 +52,7 @@ export default function HomePage() {
   const [gameProfile, setGameProfile] = useState<GameProfile | null>(null);
   const [wordGroups, setWordGroups] = useState<WordGroup[]>([]);
   const [selectedCategory, setSelectedCategoryState] = useState<string | null>(null);
+  const [visibleCategories, setVisibleCategories] = useState<CategoryInfo[]>([]);
   const [completedGroupNames, setCompletedGroupNames] = useState<Set<string>>(new Set());
 
   useEffect(() => {
@@ -101,6 +103,19 @@ export default function HomePage() {
     if (cat) {
       fetchGroupsByCategory(cat).then(setWordGroups);
     }
+
+    // 사용자에게 보이는 카테고리 로드
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      fetchVisibleCategories(user?.email).then((cats) => {
+        setVisibleCategories(cats);
+        // 카테고리 미선택 + 카테고리 1개만 있으면 자동 선택
+        if (!cat && cats.length === 1) {
+          setSelectedCategoryState(cats[0].name);
+          saveSelectedCategory(cats[0].name);
+          fetchGroupsByCategory(cats[0].name).then(setWordGroups);
+        }
+      });
+    });
   }, []);
 
   const stats = calcStats(sessions);
