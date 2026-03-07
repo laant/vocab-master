@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { getCurrentSession, setCurrentSession } from "@/lib/storage";
-import { getFirstDefinition, getAudioUrl } from "@/lib/dictionary-api";
+import { getFirstDefinition, playWordAudio } from "@/lib/dictionary-api";
 import { StudySession, WordData } from "@/types";
 
 function shuffle<T>(arr: T[]): T[] {
@@ -51,13 +51,7 @@ export default function ListeningPage() {
   );
 
   const playAudio = useCallback((word: WordData) => {
-    const url = getAudioUrl(word);
-    if (url) {
-      if (audioRef.current) audioRef.current.pause();
-      const audio = new Audio(url);
-      audioRef.current = audio;
-      audio.play().catch(() => {});
-    }
+    playWordAudio(word, audioRef);
   }, []);
 
   useEffect(() => {

@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { getCurrentSession, setCurrentSession } from "@/lib/storage";
-import { getAudioUrl } from "@/lib/dictionary-api";
+import { playWordAudio } from "@/lib/dictionary-api";
 import { StudySession, WordData } from "@/types";
 
 interface LetterSlot {
@@ -25,13 +25,7 @@ export default function RecallPage() {
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const playAudio = useCallback((word: WordData) => {
-    const url = getAudioUrl(word);
-    if (url) {
-      if (audioRef.current) audioRef.current.pause();
-      const audio = new Audio(url);
-      audioRef.current = audio;
-      audio.play().catch(() => {});
-    }
+    playWordAudio(word, audioRef);
   }, []);
 
   const setupWord = useCallback((word: string) => {

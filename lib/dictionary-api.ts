@@ -60,6 +60,26 @@ export function getAudioUrl(word: WordData): string | null {
   return null;
 }
 
+// 발음 재생 (audio URL 우선, 없으면 브라우저 TTS fallback)
+export function playWordAudio(
+  word: WordData,
+  audioRef?: { current: HTMLAudioElement | null }
+): void {
+  const url = getAudioUrl(word);
+  if (url) {
+    if (audioRef?.current) audioRef.current.pause();
+    const audio = new Audio(url);
+    if (audioRef) audioRef.current = audio;
+    audio.play().catch(() => {});
+  } else if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(word.word);
+    utterance.lang = 'en-US';
+    utterance.rate = 0.9;
+    window.speechSynthesis.speak(utterance);
+  }
+}
+
 // 첫 번째 뜻 가져오기
 export function getFirstDefinition(word: WordData): string {
   return word.meanings[0]?.definitions[0]?.definition || 'No definition found';
