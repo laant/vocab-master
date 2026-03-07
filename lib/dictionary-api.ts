@@ -2,8 +2,6 @@ import { WordData } from '@/types';
 
 interface DictionaryApiResponse {
   word: string;
-  phonetic?: string;
-  phonetics?: { text?: string; audio?: string }[];
   meanings?: {
     partOfSpeech: string;
     definitions: {
@@ -13,33 +11,70 @@ interface DictionaryApiResponse {
   }[];
 }
 
-// Free Dictionary API에서 단어 데이터 가져오기
-export async function fetchWordData(word: string): Promise<WordData | null> {
+interface NaverDictResponse {
+  meaning: string;
+  phonetic: string;
+  phonetics: { text: string; audio: string }[];
+  examples: { en: string; ko: string }[];
+}
+
+// Free Dictionary API에서 영어 정의만 가져오기
+async function fetchEnglishDefinitions(word: string): Promise<DictionaryApiResponse | null> {
   try {
     const res = await fetch(
       `https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(word.trim().toLowerCase())}`
     );
-
     if (!res.ok) return null;
-
     const data: DictionaryApiResponse[] = await res.json();
-    const entry = data[0];
-
-    if (!entry) return null;
-
-    return {
-      word: entry.word,
-      phonetic: entry.phonetic || entry.phonetics?.[0]?.text || '',
-      phonetics: entry.phonetics || [],
-      meanings: entry.meanings || [],
-      korean: '', // 한글 뜻은 사용자가 직접 입력
-    };
+    return data[0] || null;
   } catch {
     return null;
   }
 }
 
-// 여러 단어를 한번에 가져오기
+// 네이버 사전에서 발음/오디오/한글뜻/예문 가져오기
+async function fetchNaverDict(word: string): Promise<NaverDictResponse | null> {
+  try {
+    const res = await fetch(`/api/dict?q=${encodeURIComponent(word)}`);
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data;
+  } catch {
+    return null;
+  }
+}
+
+// 네이버 + Free Dictionary 통합 단어 데이터 가져오기
+export async function fetchWordData(word: string): Promise<WordData | null> {
+  const [naver, freeDictEntry] = await Promise.all([
+    fetchNaverDict(word),
+    fetchEnglishDefinitions(word),
+  ]);
+
+  // 둘 다 실패하면 null
+  if (!naver && !freeDictEntry) return null;
+
+  // 영어 정의 (Free Dictionary API)
+  const meanings = freeDictEntry?.meanings || [];
+
+  // 네이버 예문을 영어 정의의 example에 매핑
+  if (naver?.examples?.length && meanings.length > 0) {
+    const firstDef = meanings[0]?.definitions?.[0];
+    if (firstDef && !firstDef.example && naver.examples[0]?.en) {
+      firstDef.example = naver.examples[0].en;
+    }
+  }
+
+  return {
+    word: word.trim().toLowerCase(),
+    phonetic: naver?.phonetic || '',
+    phonetics: naver?.phonetics || [],
+    meanings,
+    korean: naver?.meaning || '',
+  };
+}
+
+// 여러 단어를 한번에 가져오기 (korean 포함)
 export async function fetchMultipleWords(
   words: string[]
 ): Promise<Map<string, WordData | null>> {
@@ -73,43 +108,4 @@ export function getFirstExample(word: WordData): string | null {
     }
   }
   return null;
-}
-
-// Google Translate API로 영어 → 한국어 번역
-export async function translateToKorean(word: string): Promise<string> {
-  // 1차: 네이버 사전 (옥스퍼드 영한사전 기반)
-  try {
-    const res = await fetch(`/api/dict?q=${encodeURIComponent(word)}`);
-    if (res.ok) {
-      const data = await res.json();
-      if (data.meaning) return data.meaning;
-    }
-  } catch {
-    // fallback to Google Translate
-  }
-
-  // 2차: Google Translate (fallback)
-  try {
-    const res = await fetch(
-      `https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl=ko&dt=t&q=${encodeURIComponent(word)}`
-    );
-    if (!res.ok) return '';
-    const data = await res.json();
-    return data?.[0]?.[0]?.[0] || '';
-  } catch {
-    return '';
-  }
-}
-
-// 여러 단어를 한번에 번역
-export async function translateMultipleWords(
-  words: string[]
-): Promise<Map<string, string>> {
-  const results = new Map<string, string>();
-  const promises = words.map(async (word) => {
-    const translated = await translateToKorean(word);
-    results.set(word.trim().toLowerCase(), translated);
-  });
-  await Promise.all(promises);
-  return results;
 }

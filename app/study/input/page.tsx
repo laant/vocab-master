@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { fetchMultipleWords, translateMultipleWords, getFirstDefinition } from "@/lib/dictionary-api";
+import { fetchMultipleWords, getFirstDefinition } from "@/lib/dictionary-api";
 import { saveSession, setCurrentSession, generateSessionId, getAllProgress, getSessions } from "@/lib/storage";
 import { fetchVisibleCategories, fetchGroupsByCategory, CategoryInfo, WordGroup } from "@/lib/admin";
 import { supabase } from "@/lib/supabase";
@@ -119,15 +119,12 @@ export default function InputPage() {
     if (validWords.length === 0) return;
     setLoading(true);
     try {
-      const [results, translations] = await Promise.all([
-        fetchMultipleWords(validWords),
-        translateMultipleWords(validWords),
-      ]);
+      const results = await fetchMultipleWords(validWords);
       setFetchedWords(results);
-      // 번역 결과를 한글 뜻 초기값으로 세팅
+      // 네이버 사전 결과에서 한글 뜻 추출
       const meanings = new Map<string, string>();
-      translations.forEach((translated, word) => {
-        if (translated) meanings.set(word, translated);
+      results.forEach((data, word) => {
+        if (data?.korean) meanings.set(word, data.korean);
       });
       setKoreanMeanings(meanings);
       setStep("confirm");

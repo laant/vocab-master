@@ -1,5 +1,5 @@
 import { supabase } from './supabase';
-import { fetchWordData, translateToKorean } from './dictionary-api';
+import { fetchWordData } from './dictionary-api';
 import { WordData } from '@/types';
 
 export const ADMIN_EMAIL = 'lee.junghoon@gmail.com';
@@ -194,14 +194,11 @@ export async function processWordGroup(
 
     onProgress?.(i + 1, rawWords.length);
 
-    // Dictionary API + 번역
-    const [data, korean] = await Promise.all([
-      fetchWordData(word),
-      translateToKorean(word),
-    ]);
+    // 네이버 사전 + Free Dictionary API 통합
+    const data = await fetchWordData(word);
 
     if (data) {
-      wordDataList.push({ ...data, korean });
+      wordDataList.push(data);
     } else {
       // API에서 못 찾은 단어는 기본 구조로 추가
       wordDataList.push({
@@ -209,7 +206,7 @@ export async function processWordGroup(
         phonetic: '',
         phonetics: [],
         meanings: [],
-        korean,
+        korean: '',
       });
     }
 
