@@ -46,6 +46,7 @@ export default function RootLayout({
       <body className="bg-background min-h-screen text-slate-900 antialiased pb-20 md:pb-0">
         <Header />
         <main className="flex-1">{children}</main>
+        <DataSourceFooter />
         <MobileTabBar />
         <ServiceWorkerRegister />
       </body>
@@ -110,6 +111,16 @@ function ServiceWorkerRegister() {
         `,
       }}
     />
+  );
+}
+
+function DataSourceFooter() {
+  return (
+    <footer className="mt-16 mb-4 px-4 text-center text-[11px] text-slate-300 leading-relaxed">
+      <span>발음·뜻: 네이버 사전(옥스퍼드 영한사전)</span>
+      <span className="mx-1.5">|</span>
+      <span>영어 정의: Free Dictionary API</span>
+    </footer>
   );
 }
 
