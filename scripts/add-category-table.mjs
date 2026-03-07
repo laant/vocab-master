@@ -55,6 +55,15 @@ ALTER TABLE word_group_categories ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Anyone can read categories" ON word_group_categories
   FOR SELECT USING (true);
 
+CREATE POLICY "Authenticated users can insert categories" ON word_group_categories
+  FOR INSERT WITH CHECK (true);
+
+CREATE POLICY "Authenticated users can update categories" ON word_group_categories
+  FOR UPDATE USING (true);
+
+CREATE POLICY "Authenticated users can delete categories" ON word_group_categories
+  FOR DELETE USING (true);
+
 -- 관리자만 쓰기 (서비스 키로 우회)
 `);
   process.exit(1);

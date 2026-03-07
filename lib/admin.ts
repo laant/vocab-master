@@ -68,7 +68,10 @@ export async function createCategory(name: string, isPublic: boolean, allowedEma
     .insert({ name, is_public: isPublic, allowed_emails: allowedEmails })
     .select()
     .single();
-  if (error || !data) return null;
+  if (error) {
+    console.error('createCategory error:', error.message);
+    return null;
+  }
   return data as CategoryMeta;
 }
 
