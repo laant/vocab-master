@@ -95,7 +95,7 @@ export default function PreviewPage() {
         <div className="w-full text-center space-y-6">
           {/* 단어 + 발음기호 */}
           <div className="space-y-2">
-            <h1 className="text-4xl sm:text-5xl font-bold tracking-tight">{word.word}</h1>
+            <h1 className="text-5xl sm:text-6xl md:text-7xl font-bold tracking-tight">{word.word}</h1>
             <div className="flex items-center justify-center gap-3">
               <span className="text-slate-500 text-lg font-medium">{word.phonetic}</span>
               {audioUrl && (
