@@ -90,7 +90,6 @@ export default function QuizPage() {
     playAudio(s.words[0]);
   }, [router, generateChoices, playAudio]);
 
-  // 타이머 정리
   useEffect(() => {
     return () => {
       if (timerRef.current) clearTimeout(timerRef.current);
@@ -101,6 +100,7 @@ export default function QuizPage() {
 
   const currentWord = session.words[currentIndex];
   const total = session.words.length;
+  const audioUrl = getAudioUrl(currentWord);
 
   const handleSelect = (index: number) => {
     if (answerState !== "idle") return;
@@ -111,7 +111,6 @@ export default function QuizPage() {
 
     if (isCorrect) {
       setAnswerState("correct");
-      // 2초 후 다음 문제
       timerRef.current = setTimeout(() => {
         setSelected(null);
         setAnswerState("idle");
@@ -132,7 +131,6 @@ export default function QuizPage() {
       if (!wrongWords.includes(currentWord.word)) {
         setWrongWords((prev) => [...prev, currentWord.word]);
       }
-      // 3초 후 같은 문제 다시 (선택지 재섞기)
       timerRef.current = setTimeout(() => {
         setSelected(null);
         setAnswerState("idle");
@@ -143,101 +141,111 @@ export default function QuizPage() {
   };
 
   return (
-    <div className="mx-auto max-w-2xl px-4 py-12">
-      {/* 헤더 */}
-      <div className="flex items-center justify-between mb-8">
-        <div>
-          <h2 className="text-xl font-bold">Step 2: 뜻 고르기</h2>
-          <p className="text-sm text-slate-500">올바른 뜻을 선택하세요</p>
+    <div className="relative flex min-h-[calc(100dvh-60px)] w-full flex-col">
+      {/* Progress Section */}
+      <div className="flex flex-col gap-3 p-4">
+        <div className="flex gap-6 justify-between items-center">
+          <p className="text-sm font-medium">Step 2: 뜻 고르기</p>
+          <p className="text-primary text-sm font-bold">{currentIndex + 1} / {total}</p>
         </div>
-        <div className="text-sm font-bold text-slate-500">
-          {currentIndex + 1} / {total}
+        <div className="rounded-full bg-slate-200 h-2 w-full overflow-hidden">
+          <div
+            className="h-full rounded-full bg-primary transition-all duration-300"
+            style={{ width: `${((currentIndex + 1) / total) * 100}%` }}
+          />
         </div>
       </div>
 
-      {/* 프로그레스 바 */}
-      <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden mb-8">
-        <div
-          className="bg-primary h-full transition-all duration-300"
-          style={{ width: `${((currentIndex + 1) / total) * 100}%` }}
-        />
-      </div>
+      {/* Main Content */}
+      <main className="flex-1 flex flex-col items-center justify-center px-4 sm:px-6 py-8">
+        <div className="w-full max-w-lg space-y-6">
+          {/* 문제 영역 */}
+          <div className="relative text-center space-y-2">
+            <p className="text-slate-400 text-sm">이 단어의 뜻은?</p>
+            <h1 className="text-5xl sm:text-6xl md:text-7xl font-bold tracking-tight">{currentWord.word}</h1>
+            <div className="flex items-center justify-center gap-3">
+              <span className="text-slate-500 text-lg font-medium">{currentWord.phonetic}</span>
+              {audioUrl && (
+                <button
+                  onClick={() => playAudio(currentWord)}
+                  className="bg-primary/10 p-2 rounded-full text-primary hover:scale-105 active:scale-95 transition-transform flex items-center justify-center"
+                >
+                  <span className="material-symbols-outlined text-2xl">volume_up</span>
+                </button>
+              )}
+            </div>
 
-      {/* 문제 카드 + 오버레이 */}
-      <div className="relative bg-white rounded-2xl shadow-lg border border-slate-200 p-5 sm:p-8 md:p-12 text-center mb-8">
-        <p className="text-slate-400 text-sm mb-4">이 단어의 뜻은?</p>
-        <h1 className="text-3xl sm:text-5xl md:text-6xl font-bold mb-2">{currentWord.word}</h1>
-        <p className="text-slate-400">{currentWord.phonetic}</p>
-
-        {/* 정답/오답 오버레이 */}
-        {answerState !== "idle" && (
-          <div className="absolute inset-0 flex items-center justify-center rounded-2xl animate-[fadeIn_0.2s_ease-out]">
-            {answerState === "correct" ? (
-              <span className="text-green-400 text-[120px] font-bold leading-none select-none" style={{ textShadow: "0 2px 12px rgba(74,222,128,0.3)" }}>O</span>
-            ) : (
-              <span className="text-red-400 text-[120px] font-bold leading-none select-none" style={{ textShadow: "0 2px 12px rgba(248,113,113,0.3)" }}>X</span>
-            )}
-          </div>
-        )}
-      </div>
-
-      {/* 오답 메시지 */}
-      {answerState === "wrong" && (
-        <div className="text-center mb-4 animate-[fadeIn_0.2s_ease-out]">
-          <p className="text-red-500 font-bold text-lg">다시 생각해보세요</p>
-          <p className="text-slate-400 text-sm mt-1">3초 후 다시 풀어보세요</p>
-        </div>
-      )}
-
-      {/* 선택지 */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-8">
-        {choices.map((choice, i) => {
-          const isCorrectChoice = choice.word.word === currentWord.word;
-          let borderClass = "border-slate-200 hover:border-primary";
-          let bgClass = "bg-white";
-
-          if (answerState !== "idle") {
-            if (answerState === "correct" && isCorrectChoice) {
-              borderClass = "border-green-400";
-              bgClass = "bg-green-50";
-            } else if (i === selected && !isCorrectChoice) {
-              borderClass = "border-red-400";
-              bgClass = "bg-red-50";
-            } else {
-              borderClass = "border-slate-100";
-              bgClass = "bg-slate-50 opacity-50";
-            }
-          } else if (i === selected) {
-            borderClass = "border-primary";
-          }
-
-          return (
-            <button
-              key={i}
-              onClick={() => handleSelect(i)}
-              disabled={answerState !== "idle"}
-              className={`${bgClass} rounded-xl p-5 border-2 ${borderClass} text-left transition-all`}
-            >
-              <div className="flex items-center gap-3">
-                <span className="w-8 h-8 flex items-center justify-center rounded-full bg-slate-100 text-sm font-bold text-slate-500">
-                  {i + 1}
-                </span>
-                <span className="font-medium">{choice.label}</span>
-                {answerState === "correct" && isCorrectChoice && (
-                  <span className="material-symbols-outlined text-green-500 ml-auto">
-                    check_circle
-                  </span>
-                )}
-                {answerState === "wrong" && i === selected && !isCorrectChoice && (
-                  <span className="material-symbols-outlined text-red-400 ml-auto">
-                    cancel
-                  </span>
+            {/* O/X 오버레이 */}
+            {answerState !== "idle" && (
+              <div className="absolute inset-0 flex items-center justify-center animate-[fadeIn_0.2s_ease-out] pointer-events-none">
+                {answerState === "correct" ? (
+                  <span className="text-green-400 text-[120px] font-bold leading-none select-none" style={{ textShadow: "0 2px 12px rgba(74,222,128,0.3)" }}>O</span>
+                ) : (
+                  <span className="text-red-400 text-[120px] font-bold leading-none select-none" style={{ textShadow: "0 2px 12px rgba(248,113,113,0.3)" }}>X</span>
                 )}
               </div>
-            </button>
-          );
-        })}
-      </div>
+            )}
+          </div>
+
+          {/* 오답 메시지 */}
+          {answerState === "wrong" && (
+            <div className="text-center animate-[fadeIn_0.2s_ease-out]">
+              <p className="text-red-500 font-bold">다시 생각해보세요</p>
+              <p className="text-slate-400 text-sm mt-1">3초 후 다시 풀어보세요</p>
+            </div>
+          )}
+
+          {/* 선택지 */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {choices.map((choice, i) => {
+              const isCorrectChoice = choice.word.word === currentWord.word;
+              let borderClass = "border-slate-200 hover:border-primary";
+              let bgClass = "bg-white";
+
+              if (answerState !== "idle") {
+                if (answerState === "correct" && isCorrectChoice) {
+                  borderClass = "border-green-400";
+                  bgClass = "bg-green-50";
+                } else if (i === selected && !isCorrectChoice) {
+                  borderClass = "border-red-400";
+                  bgClass = "bg-red-50";
+                } else {
+                  borderClass = "border-slate-100";
+                  bgClass = "bg-slate-50 opacity-50";
+                }
+              } else if (i === selected) {
+                borderClass = "border-primary";
+              }
+
+              return (
+                <button
+                  key={i}
+                  onClick={() => handleSelect(i)}
+                  disabled={answerState !== "idle"}
+                  className={`${bgClass} rounded-xl p-5 border-2 ${borderClass} text-left transition-all`}
+                >
+                  <div className="flex items-center gap-3">
+                    <span className="w-8 h-8 flex items-center justify-center rounded-full bg-slate-100 text-sm font-bold text-slate-500">
+                      {i + 1}
+                    </span>
+                    <span className="font-medium">{choice.label}</span>
+                    {answerState === "correct" && isCorrectChoice && (
+                      <span className="material-symbols-outlined text-green-500 ml-auto">
+                        check_circle
+                      </span>
+                    )}
+                    {answerState === "wrong" && i === selected && !isCorrectChoice && (
+                      <span className="material-symbols-outlined text-red-400 ml-auto">
+                        cancel
+                      </span>
+                    )}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      </main>
     </div>
   );
 }

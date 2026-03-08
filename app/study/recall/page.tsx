@@ -135,9 +135,7 @@ export default function RecallPage() {
       if (!wrongWords.includes(currentWord.word)) {
         setWrongWords((prev) => [...prev, currentWord.word]);
       }
-      // 모든 글자 공개해서 정답 확인
       setSlots(slots.map((s) => ({ ...s, revealed: true })));
-      // 3초 후 같은 문제 다시 시작
       timerRef.current = setTimeout(() => {
         setupWord(currentWord.word);
       }, 3000);
@@ -159,110 +157,110 @@ export default function RecallPage() {
   };
 
   return (
-    <div className="mx-auto max-w-2xl px-4 py-12">
-      {/* 헤더 */}
-      <div className="flex items-center justify-between mb-8">
-        <div>
-          <h2 className="text-xl font-bold">Step 3: 스펠링 맞히기</h2>
-          <p className="text-sm text-slate-500">빈칸에 알맞은 철자를 채우세요</p>
+    <div className="relative flex min-h-[calc(100dvh-60px)] w-full flex-col">
+      {/* Progress Section */}
+      <div className="flex flex-col gap-3 p-4">
+        <div className="flex gap-6 justify-between items-center">
+          <p className="text-sm font-medium">Step 3: 스펠링 맞히기</p>
+          <p className="text-primary text-sm font-bold">{currentIndex + 1} / {total}</p>
         </div>
-        <div className="text-sm font-bold text-slate-500">
-          {currentIndex + 1} / {total}
+        <div className="rounded-full bg-slate-200 h-2 w-full overflow-hidden">
+          <div
+            className="h-full rounded-full bg-primary transition-all duration-300"
+            style={{ width: `${((currentIndex + 1) / total) * 100}%` }}
+          />
         </div>
       </div>
 
-      {/* 프로그레스 바 */}
-      <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden mb-8">
-        <div
-          className="bg-primary h-full transition-all duration-300"
-          style={{ width: `${((currentIndex + 1) / total) * 100}%` }}
-        />
-      </div>
+      {/* Main Content */}
+      <main className="flex-1 flex flex-col items-center justify-center px-4 sm:px-6 py-8">
+        <div className="relative w-full max-w-lg text-center space-y-8">
+          {/* 한글 뜻 */}
+          <div className="space-y-2">
+            <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 w-full max-w-sm mx-auto">
+              <p className="text-primary text-xs font-bold uppercase tracking-widest mb-2">Meaning</p>
+              <p className="text-2xl sm:text-3xl font-bold leading-tight">
+                {currentWord.korean || "?"}
+              </p>
+            </div>
+            <p className="text-slate-400 text-sm pt-2">빈칸의 알파벳을 클릭하세요</p>
+          </div>
 
-      {/* 메인 카드 */}
-      <div className="relative bg-white rounded-2xl shadow-lg border border-slate-200 p-5 sm:p-8 md:p-12 flex flex-col items-center">
-        {/* 한글 뜻 */}
-        <div className="text-center mb-8 sm:mb-10">
-          <h1 className="text-2xl sm:text-4xl md:text-5xl font-bold mb-2">
-            {currentWord.korean || "?"}
-          </h1>
-          <p className="text-slate-400">빈칸의 알파벳을 클릭하세요</p>
+          {/* 스펠링 슬롯 */}
+          <div className="flex flex-wrap justify-center gap-2">
+            {slots.map((slot, i) => {
+              const blankOrder = blankSlots.findIndex((b) => b.index === i);
+              const isCurrentTarget =
+                slot.isBlank && blankOrder === currentBlankIdx && answerState === "idle";
+
+              return (
+                <div
+                  key={i}
+                  className={`w-12 h-14 md:w-14 md:h-16 flex items-center justify-center rounded-lg border-2 text-2xl font-bold transition-all ${
+                    slot.isBlank && !slot.revealed
+                      ? isCurrentTarget
+                        ? "border-dashed border-primary bg-primary/5 text-primary animate-pulse"
+                        : "border-slate-200 text-slate-300"
+                      : slot.isBlank && slot.revealed
+                      ? answerState === "wrong"
+                        ? "border-red-300 bg-red-50 text-red-500"
+                        : "border-green-300 bg-green-50 text-green-600"
+                      : "border-slate-200 bg-slate-50 text-slate-800"
+                  }`}
+                >
+                  {slot.revealed ? slot.letter : "_"}
+                </div>
+              );
+            })}
+          </div>
+
+          {/* 글자 뱅크 */}
+          {answerState === "idle" && (
+            <div className="flex justify-center gap-3 flex-wrap">
+              {letterBank.map((item, i) => (
+                <button
+                  key={i}
+                  onClick={() => handleLetterClick(i)}
+                  disabled={item.used}
+                  className={`w-14 h-14 rounded-xl border-2 shadow-sm flex items-center justify-center text-xl font-bold transition-all ${
+                    item.used
+                      ? "border-slate-100 bg-slate-50 text-slate-300 cursor-not-allowed"
+                      : "border-slate-200 bg-white hover:border-primary hover:text-primary"
+                  }`}
+                >
+                  {item.letter}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* 힌트 (발음 듣기) */}
+          {answerState === "idle" && (
+            <button
+              onClick={handleHint}
+              className="bg-primary/10 px-6 py-3 rounded-xl text-primary font-bold hover:bg-primary/20 transition-colors flex items-center justify-center gap-2 mx-auto"
+            >
+              <span className="material-symbols-outlined text-2xl">volume_up</span>
+              발음 듣기
+            </button>
+          )}
+
+          {/* 정답 오버레이 */}
+          {answerState === "correct" && (
+            <div className="absolute inset-0 flex items-center justify-center animate-[fadeIn_0.2s_ease-out] pointer-events-none">
+              <span className="text-green-400 text-[120px] font-bold leading-none select-none" style={{ textShadow: "0 2px 12px rgba(74,222,128,0.3)" }}>O</span>
+            </div>
+          )}
+
+          {/* 오답 메시지 */}
+          {answerState === "wrong" && (
+            <div className="text-center animate-[fadeIn_0.2s_ease-out]">
+              <p className="text-red-500 font-bold">단어를 확인하세요</p>
+              <p className="text-slate-400 text-sm mt-1">3초 후 다시 풀어보세요</p>
+            </div>
+          )}
         </div>
-
-        {/* 스펠링 슬롯 */}
-        <div className="flex flex-wrap justify-center gap-2 mb-12">
-          {slots.map((slot, i) => {
-            const blankOrder = blankSlots.findIndex((b) => b.index === i);
-            const isCurrentTarget =
-              slot.isBlank && blankOrder === currentBlankIdx && answerState === "idle";
-
-            return (
-              <div
-                key={i}
-                className={`w-12 h-14 md:w-14 md:h-16 flex items-center justify-center rounded-lg border-2 text-2xl font-bold transition-all ${
-                  slot.isBlank && !slot.revealed
-                    ? isCurrentTarget
-                      ? "border-dashed border-primary bg-primary/5 text-primary animate-pulse"
-                      : "border-slate-200 text-slate-300"
-                    : slot.isBlank && slot.revealed
-                    ? answerState === "wrong"
-                      ? "border-red-300 bg-red-50 text-red-500"
-                      : "border-green-300 bg-green-50 text-green-600"
-                    : "border-slate-200 bg-slate-50 text-slate-800"
-                }`}
-              >
-                {slot.revealed ? slot.letter : "_"}
-              </div>
-            );
-          })}
-        </div>
-
-        {/* 글자 뱅크 */}
-        {answerState === "idle" && (
-          <div className="flex justify-center gap-3 flex-wrap mb-8">
-            {letterBank.map((item, i) => (
-              <button
-                key={i}
-                onClick={() => handleLetterClick(i)}
-                disabled={item.used}
-                className={`w-14 h-14 rounded-xl border-2 shadow-md flex items-center justify-center text-xl font-bold transition-all ${
-                  item.used
-                    ? "border-slate-100 bg-slate-50 text-slate-300 cursor-not-allowed"
-                    : "border-slate-200 bg-white hover:border-primary hover:text-primary"
-                }`}
-              >
-                {item.letter}
-              </button>
-            ))}
-          </div>
-        )}
-
-        {/* 힌트 (발음 듣기) */}
-        {answerState === "idle" && (
-          <button
-            onClick={handleHint}
-            className="flex items-center gap-2 px-6 py-3 rounded-xl border-2 border-slate-200 font-bold text-slate-500 hover:bg-slate-50 transition-colors"
-          >
-            <span className="material-symbols-outlined">volume_up</span>
-            발음 듣기
-          </button>
-        )}
-
-        {/* 정답 오버레이 */}
-        {answerState === "correct" && (
-          <div className="absolute inset-0 flex items-center justify-center rounded-2xl animate-[fadeIn_0.2s_ease-out]">
-            <span className="text-green-400 text-[120px] font-bold leading-none select-none" style={{ textShadow: "0 2px 12px rgba(74,222,128,0.3)" }}>O</span>
-          </div>
-        )}
-
-        {/* 오답 메시지 (오버레이 없이 하단에 표시) */}
-        {answerState === "wrong" && (
-          <div className="mt-6 text-center animate-[fadeIn_0.2s_ease-out]">
-            <p className="text-red-500 font-bold text-lg">단어를 확인하세요</p>
-            <p className="text-slate-400 text-sm mt-1">3초 후 다시 풀어보세요</p>
-          </div>
-        )}
-      </div>
+      </main>
     </div>
   );
 }
