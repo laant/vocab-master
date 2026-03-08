@@ -4,13 +4,12 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { getCurrentSession, setCurrentSession } from "@/lib/storage";
 import { getAudioUrl, getFirstDefinition, getFirstExample } from "@/lib/dictionary-api";
-import { StudySession, WordData } from "@/types";
+import { StudySession } from "@/types";
 
 export default function PreviewPage() {
   const router = useRouter();
   const [session, setSession] = useState<StudySession | null>(null);
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [flipped, setFlipped] = useState(false);
 
   useEffect(() => {
     const s = getCurrentSession();
@@ -37,6 +36,7 @@ export default function PreviewPage() {
   const word = session.words[currentIndex];
   const total = session.words.length;
   const audioUrl = getAudioUrl(word);
+  const example = getFirstExample(word);
 
   const playAudio = () => {
     if (audioUrl) {
@@ -46,11 +46,9 @@ export default function PreviewPage() {
   };
 
   const goNext = () => {
-    setFlipped(false);
     if (currentIndex < total - 1) {
       setCurrentIndex(currentIndex + 1);
     } else {
-      // 모든 카드를 봤으면 Step 2로 이동
       const updated = { ...session, currentStep: 2 };
       setCurrentSession(updated);
       router.push("/study/quiz");
@@ -59,117 +57,106 @@ export default function PreviewPage() {
 
   const goPrev = () => {
     if (currentIndex > 0) {
-      setFlipped(false);
       setCurrentIndex(currentIndex - 1);
     }
   };
 
+  // 예문에서 단어를 하이라이트
+  const highlightWord = (text: string, target: string) => {
+    const regex = new RegExp(`(${target})`, "gi");
+    const parts = text.split(regex);
+    return parts.map((part, i) =>
+      regex.test(part) ? (
+        <span key={i} className="text-primary font-bold">{part}</span>
+      ) : (
+        <span key={i}>{part}</span>
+      )
+    );
+  };
+
   return (
-    <div className="mx-auto max-w-2xl px-4 py-12">
-      {/* 헤더 */}
-      <div className="flex items-center justify-between mb-8">
-        <div>
-          <h2 className="text-xl font-bold">Step 1: 노출 및 탐색</h2>
-          <p className="text-sm text-slate-500">카드를 넘기며 가볍게 읽어보세요</p>
+    <div className="relative flex min-h-[calc(100dvh-60px)] w-full flex-col">
+      {/* Progress Section */}
+      <div className="flex flex-col gap-3 p-4">
+        <div className="flex gap-6 justify-between items-center">
+          <p className="text-sm font-medium">Step 1: 노출 및 탐색</p>
+          <p className="text-primary text-sm font-bold">{currentIndex + 1} / {total}</p>
         </div>
-        <div className="text-sm font-bold text-slate-500">
-          {currentIndex + 1} / {total}
+        <div className="rounded-full bg-slate-200 h-2 w-full overflow-hidden">
+          <div
+            className="h-full rounded-full bg-primary transition-all duration-300"
+            style={{ width: `${((currentIndex + 1) / total) * 100}%` }}
+          />
         </div>
       </div>
 
-      {/* 프로그레스 바 */}
-      <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden mb-8">
-        <div
-          className="bg-primary h-full transition-all duration-300"
-          style={{ width: `${((currentIndex + 1) / total) * 100}%` }}
-        />
-      </div>
-
-      {/* 플래시카드 */}
-      <div
-        onClick={() => setFlipped(!flipped)}
-        className="bg-white rounded-2xl shadow-lg border border-slate-200 p-5 sm:p-8 md:p-12 min-h-[300px] sm:min-h-[400px] flex flex-col items-center pt-12 sm:pt-16 cursor-pointer select-none transition-all hover:shadow-xl relative"
-      >
-        {/* 오디오 버튼 */}
-        {audioUrl && (
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              playAudio();
-            }}
-            className="absolute top-6 right-6 p-3 rounded-full bg-slate-50 text-slate-500 hover:bg-primary/10 hover:text-primary transition-all"
-          >
-            <span className="material-symbols-outlined text-2xl">volume_up</span>
-          </button>
-        )}
-
-        {/* 단어 & 발음기호: 항상 같은 위치 */}
-        <div className="text-center mb-4">
-          <h1 className="text-3xl sm:text-5xl md:text-6xl font-bold mb-4">{word.word}</h1>
-          <p className="text-slate-400 text-lg">{word.phonetic}</p>
-        </div>
-
-        {!flipped ? (
-          <p className="text-slate-300 text-sm mt-8">탭해서 뜻 보기</p>
-        ) : (
-          // 아래로 뜻/예문이 펼쳐짐
-          <div className="w-full mt-6 space-y-4 animate-[fadeIn_0.3s_ease-out]">
-            {word.korean && (
-              <div className="bg-primary/5 rounded-xl p-4 text-center">
-                <p className="text-2xl font-bold text-primary">{word.korean}</p>
-              </div>
-            )}
-
-            <div className="bg-slate-50 rounded-xl p-4 text-left">
-              <p className="text-sm text-slate-500 font-medium mb-1">
-                {word.meanings[0]?.partOfSpeech}
-              </p>
-              <p className="text-slate-700">{getFirstDefinition(word)}</p>
+      {/* Word Content Area */}
+      <main className="flex-1 flex flex-col items-center justify-center px-6 py-8 sm:py-12">
+        <div className="w-full text-center space-y-6">
+          {/* 단어 + 발음기호 */}
+          <div className="space-y-2">
+            <h1 className="text-4xl sm:text-5xl font-bold tracking-tight">{word.word}</h1>
+            <div className="flex items-center justify-center gap-3">
+              <span className="text-slate-500 text-lg font-medium">{word.phonetic}</span>
+              {audioUrl && (
+                <button
+                  onClick={playAudio}
+                  className="bg-primary/10 p-2 rounded-full text-primary hover:scale-105 active:scale-95 transition-transform flex items-center justify-center"
+                >
+                  <span className="material-symbols-outlined text-2xl">volume_up</span>
+                </button>
+              )}
             </div>
-
-            {getFirstExample(word) && (
-              <div className="bg-slate-50 rounded-xl p-4 text-left">
-                <p className="text-sm text-slate-500 font-medium mb-1">예문</p>
-                <p className="text-slate-700 italic">
-                  &ldquo;{getFirstExample(word)}&rdquo;
-                </p>
-              </div>
-            )}
           </div>
-        )}
-      </div>
 
-      {/* 네비게이션 */}
-      <div className="mt-8 flex items-center justify-between">
+          {/* 한글 뜻 */}
+          {word.korean && (
+            <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 w-full max-w-sm mx-auto">
+              <p className="text-primary text-xs font-bold uppercase tracking-widest mb-2">Meaning</p>
+              <p className="text-2xl font-bold leading-tight">{word.korean}</p>
+            </div>
+          )}
+
+          {/* 영어 정의 */}
+          {word.meanings.length > 0 && (
+            <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 w-full max-w-sm mx-auto">
+              <p className="text-primary text-xs font-bold uppercase tracking-widest mb-2">
+                {word.meanings[0]?.partOfSpeech || "Definition"}
+              </p>
+              <p className="text-slate-700 leading-relaxed">{getFirstDefinition(word)}</p>
+            </div>
+          )}
+
+          {/* 예문 */}
+          {example && (
+            <div className="max-w-sm mx-auto text-center space-y-3 pt-2">
+              <p className="text-primary text-xs font-bold uppercase tracking-widest">Example Sentence</p>
+              <p className="text-slate-700 text-lg italic leading-relaxed">
+                &ldquo;{highlightWord(example, word.word)}&rdquo;
+              </p>
+            </div>
+          )}
+        </div>
+      </main>
+
+      {/* Navigation Buttons */}
+      <footer className="p-4 sm:p-6 flex gap-4 bg-background/95 backdrop-blur-sm sticky bottom-0 border-t border-slate-200 mb-16 md:mb-0">
         <button
           onClick={goPrev}
           disabled={currentIndex === 0}
-          className="flex items-center gap-2 text-slate-500 hover:text-primary transition-colors font-medium disabled:opacity-30 disabled:cursor-not-allowed"
+          className="flex-1 py-4 px-6 rounded-xl font-bold text-slate-500 bg-slate-100 hover:bg-slate-200 transition-colors flex items-center justify-center gap-2 disabled:opacity-30 disabled:cursor-not-allowed"
         >
           <span className="material-symbols-outlined">arrow_back</span>
-          이전
+          <span>이전</span>
         </button>
-
-        {/* 페이지 인디케이터 */}
-        <div className="flex items-center gap-1.5">
-          {session.words.map((_, i) => (
-            <span
-              key={i}
-              className={`h-2 rounded-full transition-all ${
-                i === currentIndex ? "w-6 bg-primary" : "w-2 bg-slate-300"
-              }`}
-            />
-          ))}
-        </div>
-
         <button
           onClick={goNext}
-          className="flex items-center gap-2 px-6 py-3 rounded-xl bg-primary text-white font-bold shadow-lg shadow-primary/20 hover:opacity-90 transition-opacity"
+          className="flex-[2] py-4 px-6 rounded-xl font-bold text-white bg-primary hover:bg-primary/90 shadow-lg shadow-primary/20 transition-all flex items-center justify-center gap-2"
         >
-          {currentIndex < total - 1 ? "다음" : "퀴즈 시작"}
+          <span>{currentIndex < total - 1 ? "다음 단어" : "퀴즈 시작"}</span>
           <span className="material-symbols-outlined">arrow_forward</span>
         </button>
-      </div>
+      </footer>
     </div>
   );
 }
