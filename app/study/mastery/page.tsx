@@ -64,27 +64,27 @@ export default function MasteryPage() {
     const isReview = !!(s.name && s.name.startsWith("복습"));
     setIsReviewSession(isReview);
 
-    // 틀린 단어들 찾기
-    const wrongs = s.words.filter((w) => s.wrongWords.includes(w.word));
-    if (wrongs.length === 0) {
-      // 틀린 단어가 없으면 바로 완료 (모든 단어 정답)
+    // Step 5 출제 대상: 틀린 단어 + Pass한 단어
+    const passed = s.passedWords || [];
+    const step5Words = s.words.filter(
+      (w) => s.wrongWords.includes(w.word) || passed.includes(w.word)
+    );
+    if (step5Words.length === 0) {
+      // 출제 대상 없으면 바로 완료
       setCompleted(true);
       setMasteredCount(s.words.length);
-      // 진도 저장 — 오답 없으므로 모든 단어가 mastered
       const updated = { ...s, currentStep: 5 };
       saveSession(updated);
       clearCurrentSession();
       saveWordProgressForSession(updated, s.words.map((w) => w.word));
-      // 복습 세션이면 레벨 조정 (정답률 100%)
       if (isReview) {
         const newLevel = adjustReviewLevel(getReviewLevel(), 100);
         setReviewLevel(newLevel);
       }
-      // 게이미피케이션
       const gr = processSessionComplete(updated, 100);
       setGameResult(gr);
     } else {
-      setWrongWordData(wrongs);
+      setWrongWordData(step5Words);
     }
   }, [router, saveWordProgressForSession]);
 
