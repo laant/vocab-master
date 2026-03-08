@@ -8,7 +8,6 @@ import { playCorrectSound, playWrongSound } from "@/lib/sound";
 
 const TIME_LIMIT = 10; // 초
 const COMBO_THRESHOLD = 5; // 초 이내 정답 시 콤보 유지
-const TOTAL_QUESTIONS = 20;
 
 function BattlePlayContent() {
   const router = useRouter();
@@ -44,9 +43,9 @@ function BattlePlayContent() {
         return;
       }
       setUserId(user.id);
-      getMyBestScore(user.id, tier).then(setBestScore);
+      getMyBestScore(user.id, tier).then(setBestScore).catch(() => {});
       fetchBattleWords(tier).then((w) => {
-        setWords(w.slice(0, TOTAL_QUESTIONS));
+        setWords(w);
         setPhase("countdown");
       });
     });
@@ -100,24 +99,6 @@ function BattlePlayContent() {
     }
   }, [phase, currentIndex, answerState]);
 
-  const handleTimeout = useCallback(() => {
-    playWrongSound();
-    setCombo(0);
-    setAnswerState("wrong");
-    setTimeout(() => moveNext(), 1500);
-  }, [currentIndex, words.length]);
-
-  const moveNext = useCallback(() => {
-    setAnswerState("idle");
-    setInput("");
-    if (currentIndex + 1 >= words.length) {
-      finishBattle();
-    } else {
-      setCurrentIndex((i) => i + 1);
-      questionStartRef.current = Date.now();
-    }
-  }, [currentIndex, words.length]);
-
   const finishBattle = useCallback(() => {
     if (timerRef.current) clearInterval(timerRef.current);
     const elapsed = Math.round((Date.now() - startTime) / 1000);
@@ -125,10 +106,24 @@ function BattlePlayContent() {
     setPhase("result");
 
     // 점수 저장
+    const total = currentIndex + 1;
     if (userId) {
-      submitBattleScore(tier, score, maxCombo, correctCount, words.length, elapsed);
+      submitBattleScore(tier, score, maxCombo, correctCount, total, elapsed);
     }
-  }, [startTime, score, maxCombo, correctCount, words.length, userId, tier]);
+  }, [startTime, score, maxCombo, correctCount, currentIndex, userId, tier]);
+
+  const handleTimeout = useCallback(() => {
+    playWrongSound();
+    setAnswerState("wrong");
+    setTimeout(() => finishBattle(), 1500);
+  }, [finishBattle]);
+
+  const moveNext = useCallback(() => {
+    setAnswerState("idle");
+    setInput("");
+    setCurrentIndex((i) => i + 1);
+    questionStartRef.current = Date.now();
+  }, []);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -140,11 +135,10 @@ function BattlePlayContent() {
     const isCorrect = input.trim().toLowerCase() === currentWord.word.toLowerCase();
 
     if (!isCorrect || elapsed > TIME_LIMIT) {
-      // 오답 또는 시간 초과
+      // 오답 또는 시간 초과 → 배틀 종료
       playWrongSound();
-      setCombo(0);
       setAnswerState("wrong");
-      setTimeout(() => moveNext(), 1500);
+      setTimeout(() => finishBattle(), 1500);
       return;
     }
 
@@ -196,7 +190,6 @@ function BattlePlayContent() {
   // 결과
   if (phase === "result") {
     const isNewBest = score > bestScore;
-    const accuracy = words.length > 0 ? Math.round((correctCount / words.length) * 100) : 0;
 
     return (
       <div className="max-w-md mx-auto px-4 py-8">
@@ -204,7 +197,7 @@ function BattlePlayContent() {
           <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-gradient-to-br from-red-500 to-orange-500 text-white mb-4">
             <span className="material-symbols-outlined text-4xl">swords</span>
           </div>
-          <h2 className="text-2xl font-bold mb-1">배틀 완료!</h2>
+          <h2 className="text-2xl font-bold mb-1">배틀 종료!</h2>
           <p className="text-slate-500 text-sm mb-6">{GRADE_TIER_LABELS[tier]}</p>
 
           {isNewBest && (
@@ -218,8 +211,8 @@ function BattlePlayContent() {
 
           <div className="grid grid-cols-3 gap-4 mb-8">
             <div className="bg-slate-50 rounded-xl p-3">
-              <p className="text-2xl font-bold">{correctCount}<span className="text-sm text-slate-400">/{words.length}</span></p>
-              <p className="text-[10px] text-slate-500">정답</p>
+              <p className="text-2xl font-bold">{correctCount}<span className="text-sm text-slate-400">개</span></p>
+              <p className="text-[10px] text-slate-500">연속 정답</p>
             </div>
             <div className="bg-slate-50 rounded-xl p-3">
               <p className="text-2xl font-bold">{maxCombo}</p>
@@ -245,7 +238,7 @@ function BattlePlayContent() {
                 setComboDisplay(0);
                 setAnswerState("idle");
                 fetchBattleWords(tier).then((w) => {
-                  setWords(w.slice(0, TOTAL_QUESTIONS));
+                  setWords(w);
                   setPhase("countdown");
                 });
               }}
@@ -275,7 +268,7 @@ function BattlePlayContent() {
       {/* 상단 정보 */}
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-3">
-          <span className="text-sm font-bold text-slate-500">{currentIndex + 1}/{words.length}</span>
+          <span className="text-sm font-bold text-slate-500">#{currentIndex + 1}</span>
           {comboDisplay > 0 && (
             <span className="px-2 py-0.5 bg-orange-100 text-orange-600 rounded-full text-xs font-bold animate-pulse">
               {comboDisplay}x COMBO
