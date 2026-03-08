@@ -111,13 +111,11 @@ export default function HomePage() {
           <div className="relative overflow-hidden rounded-xl bg-gradient-to-r from-primary to-blue-400 p-6 sm:p-8 text-white shadow-lg shadow-primary/20">
             <div className="relative z-10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6">
               <div className="max-w-md">
-                {levelInfo && (
-                  <span className="inline-block px-2 py-1 rounded-md bg-white/20 text-xs font-semibold mb-3">
-                    LEVEL {levelInfo.level} • {getLevelTitle(levelInfo.level)}
-                  </span>
-                )}
-                <h1 className="text-2xl sm:text-3xl font-bold mb-6">
+                <span className="inline-block px-2 py-1 rounded-md bg-white/20 text-xs font-semibold mb-3">
                   영단어 마스터까지 도전해보세요
+                </span>
+                <h1 className="text-2xl sm:text-3xl font-bold mb-6">
+                  {levelInfo ? `LEVEL ${levelInfo.level} • ${getLevelTitle(levelInfo.level)}` : "시작해보세요"}
                 </h1>
                 <Link
                   href="/study/input"
