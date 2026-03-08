@@ -7,6 +7,7 @@ import { adjustReviewLevel } from "@/lib/review";
 import { calcNextReview } from "@/lib/spaced-repetition";
 import { processSessionComplete } from "@/lib/gamification";
 import { StudySession, WordData, Badge } from "@/types";
+import { playCorrectSound, playWrongSound } from "@/lib/sound";
 
 export default function MasteryPage() {
   const router = useRouter();
@@ -119,13 +120,15 @@ export default function MasteryPage() {
 
     if (isCorrect) {
       setAnswerState("correct");
+      playCorrectSound();
       setMasteredCount((prev) => prev + 1);
       setMasteredInStep5(newMastered);
     } else {
       setAnswerState("wrong");
+      playWrongSound();
     }
 
-    // 2초 후 자동 다음
+    // 자동 다음 (정답 1초, 오답 2초)
     timerRef.current = setTimeout(() => {
       setUserInput("");
       setAnswerState("idle");
@@ -135,7 +138,7 @@ export default function MasteryPage() {
       } else {
         completeSession(session, newMastered);
       }
-    }, 2000);
+    }, isCorrect ? 1000 : 2000);
   }, [userInput, wrongWordData, currentIndex, session, masteredInStep5, completeSession]);
 
   // 타이머 정리

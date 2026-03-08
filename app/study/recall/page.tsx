@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { getCurrentSession, setCurrentSession } from "@/lib/storage";
 import { getAudioUrl } from "@/lib/dictionary-api";
 import { StudySession, WordData } from "@/types";
+import { playCorrectSound, playWrongSound } from "@/lib/sound";
 
 interface LetterSlot {
   letter: string;
@@ -108,7 +109,7 @@ export default function RecallPage() {
   const scheduleNext = (newWrongs: string[]) => {
     timerRef.current = setTimeout(() => {
       goNextAuto(session, currentIndex, newWrongs);
-    }, 2000);
+    }, 1000);
   };
 
   const handleLetterClick = (bankIdx: number) => {
@@ -132,6 +133,7 @@ export default function RecallPage() {
 
     if (clickedLetter !== targetSlot.letter) {
       setAnswerState("wrong");
+      playWrongSound();
       if (!wrongWords.includes(currentWord.word)) {
         setWrongWords((prev) => [...prev, currentWord.word]);
       }
@@ -147,6 +149,7 @@ export default function RecallPage() {
 
     if (nextBlankIdx >= blankSlots.length) {
       setAnswerState("correct");
+      playCorrectSound();
       scheduleNext(wrongWords);
     }
   };

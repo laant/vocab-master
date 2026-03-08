@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { getFirstExample } from "@/lib/dictionary-api";
 import { processBonusComplete } from "@/lib/gamification";
 import { StudySession } from "@/types";
+import { playCorrectSound, playWrongSound } from "@/lib/sound";
 
 function shuffle<T>(arr: T[]): T[] {
   const a = [...arr];
@@ -112,13 +113,15 @@ export default function ContextPage() {
 
     if (choice === q.answer) {
       setAnswerState("correct");
+      playCorrectSound();
       const newCorrect = correctCount + 1;
       setCorrectCount(newCorrect);
       timerRef.current = setTimeout(() => {
         goNextQuestion(newCorrect);
-      }, 2000);
+      }, 1000);
     } else {
       setAnswerState("wrong");
+      playWrongSound();
       timerRef.current = setTimeout(() => {
         reshuffleCurrentQuestion();
       }, 3000);

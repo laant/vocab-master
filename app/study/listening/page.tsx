@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { getCurrentSession, setCurrentSession } from "@/lib/storage";
 import { getFirstDefinition, getAudioUrl } from "@/lib/dictionary-api";
 import { StudySession, WordData } from "@/types";
+import { playCorrectSound, playWrongSound } from "@/lib/sound";
 
 function shuffle<T>(arr: T[]): T[] {
   const a = [...arr];
@@ -99,6 +100,7 @@ export default function ListeningPage() {
 
     if (isCorrect) {
       setAnswerState("correct");
+      playCorrectSound();
       timerRef.current = setTimeout(() => {
         setSelected(null);
         setAnswerState("idle");
@@ -112,9 +114,10 @@ export default function ListeningPage() {
           setCurrentSession(updated);
           router.push("/study/mastery");
         }
-      }, 2000);
+      }, 1000);
     } else {
       setAnswerState("wrong");
+      playWrongSound();
       if (!wrongWords.includes(currentWord.word)) {
         setWrongWords((prev) => [...prev, currentWord.word]);
       }
