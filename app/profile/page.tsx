@@ -14,6 +14,7 @@ export default function ProfilePage() {
   const [userId, setUserId] = useState('');
   const [email, setEmail] = useState('');
   const [nickname, setNickname] = useState('');
+  const [userGroup, setUserGroup] = useState('');
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [gameProfile, setGameProfile] = useState<GameProfile | null>(null);
@@ -32,7 +33,10 @@ export default function ProfilePage() {
       setEmail(user.email || '');
 
       const profile = await getUserProfile(user.id);
-      if (profile) setNickname(profile.nickname);
+      if (profile) {
+        setNickname(profile.nickname);
+        setUserGroup(profile.user_group || '');
+      }
 
       setGameProfile(getGameProfile());
 
@@ -48,7 +52,7 @@ export default function ProfilePage() {
     e.preventDefault();
     if (!nickname.trim()) return;
     setSaving(true);
-    const success = await saveUserProfile(nickname.trim());
+    const success = await saveUserProfile(nickname.trim(), userGroup.trim());
     setSaving(false);
     if (success) {
       setSaved(true);
@@ -77,26 +81,38 @@ export default function ProfilePage() {
       </div>
 
       {/* 닉네임 설정 */}
-      <form onSubmit={handleSave} className="bg-white rounded-xl p-6 shadow-sm border border-slate-200 mb-6">
-        <label className="block text-sm font-medium text-slate-700 mb-1">닉네임</label>
-        <p className="text-xs text-slate-400 mb-3">리더보드에 표시될 이름입니다</p>
-        <div className="flex gap-3">
+      <form onSubmit={handleSave} className="bg-white rounded-xl p-6 shadow-sm border border-slate-200 mb-6 space-y-4">
+        <div>
+          <label className="block text-sm font-medium text-slate-700 mb-1">닉네임</label>
+          <p className="text-xs text-slate-400 mb-2">리더보드에 표시될 이름입니다</p>
           <input
             type="text"
             value={nickname}
             onChange={(e) => setNickname(e.target.value)}
             placeholder={email.split('@')[0]}
             maxLength={20}
-            className="flex-1 rounded-xl border border-slate-300 px-4 py-3 text-base focus:border-primary focus:ring-1 focus:ring-primary outline-none"
+            className="w-full rounded-xl border border-slate-300 px-4 py-3 text-base focus:border-primary focus:ring-1 focus:ring-primary outline-none"
           />
-          <button
-            type="submit"
-            disabled={saving || !nickname.trim()}
-            className="px-5 py-3 rounded-xl bg-primary text-white font-semibold hover:bg-primary/90 transition-colors disabled:opacity-50"
-          >
-            {saving ? '저장 중...' : saved ? '저장됨!' : '저장'}
-          </button>
         </div>
+        <div>
+          <label className="block text-sm font-medium text-slate-700 mb-1">소속</label>
+          <p className="text-xs text-slate-400 mb-2">학교, 학원 등 소속을 입력하세요</p>
+          <input
+            type="text"
+            value={userGroup}
+            onChange={(e) => setUserGroup(e.target.value)}
+            placeholder="예: OO중학교, OO학원"
+            maxLength={30}
+            className="w-full rounded-xl border border-slate-300 px-4 py-3 text-base focus:border-primary focus:ring-1 focus:ring-primary outline-none"
+          />
+        </div>
+        <button
+          type="submit"
+          disabled={saving || !nickname.trim()}
+          className="w-full px-5 py-3 rounded-xl bg-primary text-white font-semibold hover:bg-primary/90 transition-colors disabled:opacity-50"
+        >
+          {saving ? '저장 중...' : saved ? '저장됨!' : '저장'}
+        </button>
       </form>
 
       {/* 게임 프로필 */}

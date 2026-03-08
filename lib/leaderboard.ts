@@ -15,6 +15,7 @@ export interface LeaderboardEntry {
 export interface UserProfile {
   user_id: string;
   nickname: string;
+  user_group?: string;
 }
 
 // 닉네임 조회
@@ -29,13 +30,16 @@ export async function getUserProfile(userId: string): Promise<UserProfile | null
 }
 
 // 닉네임 저장
-export async function saveUserProfile(nickname: string): Promise<boolean> {
+export async function saveUserProfile(nickname: string, userGroup?: string): Promise<boolean> {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return false;
 
+  const updates: Record<string, string> = { user_id: user.id, nickname };
+  if (userGroup !== undefined) updates.user_group = userGroup;
+
   const { error } = await supabase
     .from('user_profiles')
-    .upsert({ user_id: user.id, nickname });
+    .upsert(updates);
   return !error;
 }
 
