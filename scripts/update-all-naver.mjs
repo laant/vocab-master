@@ -31,6 +31,10 @@ function stripHtml(html) {
   return html.replace(/<[^>]*>/g, '').trim();
 }
 
+function stripTrailingParens(text) {
+  return text.replace(/\s*\([^)]*\)\s*$/, '').trim();
+}
+
 // 네이버 사전 api3에서 발음기호, 오디오, 한글 뜻, 예문 조회
 async function fetchNaverData(word) {
   try {
@@ -63,7 +67,7 @@ async function fetchNaverData(word) {
     for (const mc of meansCollector) {
       for (const m of mc.means || []) {
         if (m.value) {
-          meaning = stripHtml(m.value);
+          meaning = stripTrailingParens(stripHtml(m.value));
           break;
         }
       }

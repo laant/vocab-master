@@ -4,6 +4,11 @@ function stripHtml(html: string): string {
   return html.replace(/<[^>]*>/g, '').trim();
 }
 
+// 마지막 괄호 제거: "쌍둥이 (중의 한 명) (→conjoined twin...)" → "쌍둥이 (중의 한 명)"
+function stripTrailingParens(text: string): string {
+  return text.replace(/\s*\([^)]*\)\s*$/, '').trim();
+}
+
 export async function GET(req: NextRequest) {
   const word = req.nextUrl.searchParams.get('q');
   if (!word) {
@@ -46,7 +51,7 @@ export async function GET(req: NextRequest) {
     for (const mc of meansCollector) {
       for (const m of mc.means || []) {
         if (m.value) {
-          meaning = stripHtml(m.value);
+          meaning = stripTrailingParens(stripHtml(m.value));
           break;
         }
       }
