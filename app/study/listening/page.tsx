@@ -28,6 +28,7 @@ export default function ListeningPage() {
   const [wrongWords, setWrongWords] = useState<string[]>([]);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const handleSelectRef = useRef<(index: number) => void>(() => {});
 
   const generateChoices = useCallback(
     (s: StudySession, idx: number) => {
@@ -79,6 +80,18 @@ export default function ListeningPage() {
     };
   }, []);
 
+  // 키보드 숫자키 1~4로 선택
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const num = parseInt(e.key);
+      if (num >= 1 && num <= 4) {
+        handleSelectRef.current(num - 1);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
+
   if (!session) return null;
 
   const currentWord = session.words[currentIndex];
@@ -126,6 +139,7 @@ export default function ListeningPage() {
       }, 3000);
     }
   };
+  handleSelectRef.current = handleSelect;
 
   return (
     <div className="relative flex min-h-[calc(100dvh-60px)] w-full flex-col">

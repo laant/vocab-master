@@ -24,6 +24,7 @@ export default function RecallPage() {
   const [wrongWords, setWrongWords] = useState<string[]>([]);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const handleKeyRef = useRef<(key: string) => void>(() => {});
 
   const playAudio = useCallback((word: WordData) => {
     const url = getAudioUrl(word);
@@ -97,6 +98,17 @@ export default function RecallPage() {
     };
   }, []);
 
+  // 키보드 알파벳으로 글자 선택
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key.length === 1 && /[a-zA-Z]/.test(e.key)) {
+        handleKeyRef.current(e.key.toLowerCase());
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
+
   if (!session) return null;
 
   const currentWord = session.words[currentIndex];
@@ -157,6 +169,15 @@ export default function RecallPage() {
   const handleHint = () => {
     if (answerState !== "idle") return;
     playAudio(currentWord);
+  };
+
+  // 키보드 알파벳 → letterBank에서 미사용 첫 매치 클릭
+  handleKeyRef.current = (key: string) => {
+    if (answerState !== "idle") return;
+    const bankIdx = letterBank.findIndex((item) => !item.used && item.letter === key);
+    if (bankIdx !== -1) {
+      handleLetterClick(bankIdx);
+    }
   };
 
   return (

@@ -33,6 +33,7 @@ export default function ContextPage() {
   const [completed, setCompleted] = useState(false);
   const [bonusXp, setBonusXp] = useState(0);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const handleKeySelectRef = useRef<(index: number) => void>(() => {});
 
   const buildQuestions = useCallback((s: StudySession) => {
     const qs: Question[] = s.words.map((word) => {
@@ -88,6 +89,18 @@ export default function ContextPage() {
     };
   }, []);
 
+  // 키보드 숫자키 1~4로 선택
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const num = parseInt(e.key);
+      if (num >= 1 && num <= 4) {
+        handleKeySelectRef.current(num - 1);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
+
   if (!session || questions.length === 0) return null;
 
   const total = questions.length;
@@ -131,6 +144,12 @@ export default function ContextPage() {
   const handlePass = () => {
     if (answerState !== "idle") return;
     goNextQuestion(correctCount);
+  };
+
+  handleKeySelectRef.current = (index: number) => {
+    if (index < q.choices.length) {
+      handleSelect(q.choices[index]);
+    }
   };
 
   // 보너스 완료 화면
