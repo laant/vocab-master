@@ -116,10 +116,9 @@ export default function HomePage() {
                     LEVEL {levelInfo.level} • {getLevelTitle(levelInfo.level)}
                   </span>
                 )}
-                <h1 className="text-2xl sm:text-3xl font-bold mb-2">영단어 마스터</h1>
-                <p className="text-blue-50 text-sm sm:text-lg opacity-90 mb-6">
-                  5단계 학습법으로 영단어를 완벽하게 외워보세요
-                </p>
+                <h1 className="text-2xl sm:text-3xl font-bold mb-6">
+                  영단어 마스터까지 도전해보세요
+                </h1>
                 <Link
                   href="/study/input"
                   className="inline-flex items-center gap-2 rounded-xl bg-white text-primary px-6 py-3 font-bold hover:bg-blue-50 transition-all transform hover:scale-105"
