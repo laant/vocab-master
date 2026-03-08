@@ -90,6 +90,12 @@ function Header() {
         >
           랭킹
         </a>
+        <a
+          className="text-sm font-medium text-slate-600 hover:text-primary transition-colors"
+          href="/battle"
+        >
+          배틀
+        </a>
         <TeacherNavLink />
         <AdminNavLink />
         <AuthButton />
@@ -138,6 +144,10 @@ function MobileTabBar() {
       <a href="/leaderboard" className="flex flex-col items-center gap-0.5 px-3 py-1 text-slate-500 active:text-primary">
         <span className="material-symbols-outlined text-2xl">emoji_events</span>
         <span className="text-[10px] font-medium">랭킹</span>
+      </a>
+      <a href="/battle" className="flex flex-col items-center gap-0.5 px-3 py-1 text-slate-500 active:text-primary">
+        <span className="material-symbols-outlined text-2xl">swords</span>
+        <span className="text-[10px] font-medium">배틀</span>
       </a>
       <a href="/profile" className="flex flex-col items-center gap-0.5 px-3 py-1 text-slate-500 active:text-primary">
         <span className="material-symbols-outlined text-2xl">person</span>

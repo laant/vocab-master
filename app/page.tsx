@@ -368,6 +368,22 @@ export default function HomePage() {
         {/* ===== 사이드바 ===== */}
         <div className="lg:col-span-4 flex flex-col gap-6">
 
+          {/* 배틀 배너 */}
+          <Link href="/battle" className="block group">
+            <div className="relative overflow-hidden rounded-xl bg-gradient-to-r from-red-500 to-orange-500 p-6 text-white shadow-lg shadow-red-500/20">
+              <div className="relative z-10">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="material-symbols-outlined text-2xl">swords</span>
+                  <span className="text-xs font-bold uppercase tracking-widest opacity-80">워드 배틀</span>
+                </div>
+                <h4 className="font-bold text-lg mb-1">마스터 워드 배틀</h4>
+                <p className="text-white/70 text-xs">타임어택으로 실력을 겨뤄보세요!</p>
+              </div>
+              <div className="absolute -right-4 -bottom-4 size-24 bg-white/10 rounded-full blur-2xl"></div>
+              <span className="absolute right-4 top-1/2 -translate-y-1/2 material-symbols-outlined text-white/30 text-4xl group-hover:text-white/60 transition-colors">arrow_forward</span>
+            </div>
+          </Link>
+
           {/* 학습 진도 */}
           <div className="bg-white p-6 rounded-xl border border-slate-100 shadow-sm">
             <h3 className="font-bold text-lg mb-4">학습 진도</h3>
