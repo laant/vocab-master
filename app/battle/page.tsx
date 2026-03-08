@@ -25,17 +25,16 @@ export default function BattlePage() {
         return;
       }
       setUserId(user.id);
+      setLoading(false);
 
-      getBattleWordCounts().then((c) => {
-        setCounts(c);
-        setLoading(false);
-      });
+      // 단어 수는 비동기로 로드 (카드는 먼저 표시)
+      getBattleWordCounts().then(setCounts).catch(() => {});
 
-      // 각 등급 최고점수 조회
+      // 각 등급 최고점수 조회 (테이블 없어도 에러 무시)
       Promise.all([
-        getMyBestScore(user.id, "all"),
-        getMyBestScore(user.id, "high_below"),
-        getMyBestScore(user.id, "middle_only"),
+        getMyBestScore(user.id, "all").catch(() => 0),
+        getMyBestScore(user.id, "high_below").catch(() => 0),
+        getMyBestScore(user.id, "middle_only").catch(() => 0),
       ]).then(([all, hb, mo]) => {
         setBestScores({ all, high_below: hb, middle_only: mo });
       });
@@ -73,9 +72,9 @@ export default function BattlePage() {
             <div className="flex-1">
               <div className="flex items-center gap-2">
                 <h3 className="font-bold text-lg">{GRADE_TIER_LABELS[tier]}</h3>
-                {counts && (
-                  <span className="text-xs font-medium text-slate-400">{counts[tier]}단어</span>
-                )}
+                <span className="text-xs font-medium text-slate-400">
+                  {counts ? `${counts[tier]}단어` : "..."}
+                </span>
               </div>
               <p className="text-sm text-slate-500 mt-0.5">
                 {tier === "middle_only" && "중등 필수 단어"}
