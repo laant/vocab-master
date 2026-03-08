@@ -3,7 +3,7 @@
 import { useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
-import { isAdmin, fetchAllGroups, createWordGroup, processWordGroup, deleteWordGroup, fetchAllCategoryMetas, createCategory, updateCategory, deleteCategory as deleteCategoryApi, WordGroup, CategoryMeta } from '@/lib/admin';
+import { isAdmin, fetchAllGroups, createWordGroup, processWordGroup, deleteWordGroup, fetchAllCategoryMetas, createCategory, updateCategory, deleteCategory as deleteCategoryApi, WordGroup, CategoryMeta, Grade, GRADE_LABELS } from '@/lib/admin';
 
 export default function AdminPage() {
   const router = useRouter();
@@ -20,6 +20,7 @@ export default function AdminPage() {
   const [newCatName, setNewCatName] = useState('');
   const [newCatPublic, setNewCatPublic] = useState(true);
   const [newCatEmails, setNewCatEmails] = useState('');
+  const [newCatGrade, setNewCatGrade] = useState<Grade>('normal');
   // 카테고리 편집
   const [editingCat, setEditingCat] = useState<string | null>(null);
   const [editEmails, setEditEmails] = useState('');
@@ -161,7 +162,7 @@ export default function AdminPage() {
               placeholder="카테고리 이름 (예: 고등필수 800)"
               className="px-3 py-2 rounded-lg border border-slate-200 text-sm focus:border-primary outline-none"
             />
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-4 flex-wrap">
               <label className="flex items-center gap-2 cursor-pointer">
                 <input
                   type="radio"
@@ -180,6 +181,16 @@ export default function AdminPage() {
                 />
                 <span className="text-sm">비공개</span>
               </label>
+              <span className="text-slate-300">|</span>
+              <select
+                value={newCatGrade}
+                onChange={(e) => setNewCatGrade(e.target.value as Grade)}
+                className="px-3 py-1.5 rounded-lg border border-slate-200 text-sm focus:border-primary outline-none"
+              >
+                {(Object.entries(GRADE_LABELS) as [Grade, string][]).map(([value, label]) => (
+                  <option key={value} value={value}>{label}</option>
+                ))}
+              </select>
             </div>
             {!newCatPublic && (
               <input
@@ -194,11 +205,12 @@ export default function AdminPage() {
               onClick={async () => {
                 if (!newCatName.trim()) return;
                 const emails = newCatEmails.split(',').map((e) => e.trim()).filter(Boolean);
-                const result = await createCategory(newCatName.trim(), newCatPublic, newCatPublic ? [] : emails);
+                const result = await createCategory(newCatName.trim(), newCatPublic, newCatPublic ? [] : emails, newCatGrade);
                 if (result) {
                   setNewCatName('');
                   setNewCatEmails('');
                   setNewCatPublic(true);
+                  setNewCatGrade('normal');
                   await loadGroups();
                 } else {
                   alert('카테고리 생성에 실패했습니다.');
@@ -226,6 +238,9 @@ export default function AdminPage() {
                         : 'bg-orange-50 text-orange-600 border border-orange-200'
                     }`}>
                       {cat.is_public ? '공개' : '비공개'}
+                    </span>
+                    <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-slate-100 text-slate-600 border border-slate-200">
+                      {GRADE_LABELS[cat.grade as Grade] || '일반'}
                     </span>
                   </div>
                   {!cat.is_public && (

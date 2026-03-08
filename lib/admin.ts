@@ -18,17 +18,22 @@ export interface WordGroup {
   created_at: string;
 }
 
+export type Grade = 'middle' | 'high' | 'normal';
+export const GRADE_LABELS: Record<Grade, string> = { middle: '중등', high: '고등', normal: '일반' };
+
 export interface CategoryMeta {
   id: string;
   name: string;
   is_public: boolean;
   allowed_emails: string[];
+  grade: Grade;
   created_at: string;
 }
 
 export interface CategoryInfo {
   name: string;
   is_public: boolean;
+  grade: Grade;
   groupCount: number;
   totalWords: number;
 }
@@ -62,10 +67,10 @@ export async function fetchAllCategoryMetas(): Promise<CategoryMeta[]> {
   return data as CategoryMeta[];
 }
 
-export async function createCategory(name: string, isPublic: boolean, allowedEmails: string[]): Promise<CategoryMeta | null> {
+export async function createCategory(name: string, isPublic: boolean, allowedEmails: string[], grade: Grade = 'normal'): Promise<CategoryMeta | null> {
   const { data, error } = await supabase
     .from('word_group_categories')
-    .insert({ name, is_public: isPublic, allowed_emails: allowedEmails })
+    .insert({ name, is_public: isPublic, allowed_emails: allowedEmails, grade })
     .select()
     .single();
   if (error) {
@@ -106,22 +111,18 @@ export async function fetchVisibleCategories(userEmail?: string | null): Promise
     teacherEmails = (data || []).map((d: { teacher_email: string }) => d.teacher_email);
   }
 
-  const visibleCategoryNames: string[] = [];
-  const categoryPublicMap = new Map<string, boolean>();
+  const visibleMetas: CategoryMeta[] = [];
 
   for (const meta of metas) {
     if (meta.is_public) {
-      visibleCategoryNames.push(meta.name);
-      categoryPublicMap.set(meta.name, true);
+      visibleMetas.push(meta);
     } else if (userEmail) {
-      // 관리자이거나, 허용 이메일에 포함되거나, 허용된 선생님의 학생인 경우
       const isAdminUser = isAdmin(userEmail);
       const isAllowed = meta.allowed_emails.includes(userEmail);
       const hasAllowedTeacher = teacherEmails.some((te) => meta.allowed_emails.includes(te));
 
       if (isAdminUser || isAllowed || hasAllowedTeacher) {
-        visibleCategoryNames.push(meta.name);
-        categoryPublicMap.set(meta.name, false);
+        visibleMetas.push(meta);
       }
     }
   }
@@ -132,20 +133,21 @@ export async function fetchVisibleCategories(userEmail?: string | null): Promise
 
   for (const group of groups) {
     const cat = group.category;
-    if (!cat || !visibleCategoryNames.includes(cat)) continue;
+    if (!cat) continue;
     const existing = categoryMap.get(cat) || { groupCount: 0, totalWords: 0 };
     existing.groupCount++;
     existing.totalWords += group.words?.length || 0;
     categoryMap.set(cat, existing);
   }
 
-  return visibleCategoryNames
-    .filter((name) => categoryMap.has(name))
-    .map((name) => ({
-      name,
-      is_public: categoryPublicMap.get(name) ?? true,
-      groupCount: categoryMap.get(name)!.groupCount,
-      totalWords: categoryMap.get(name)!.totalWords,
+  return visibleMetas
+    .filter((m) => categoryMap.has(m.name))
+    .map((m) => ({
+      name: m.name,
+      is_public: m.is_public,
+      grade: m.grade || 'normal',
+      groupCount: categoryMap.get(m.name)!.groupCount,
+      totalWords: categoryMap.get(m.name)!.totalWords,
     }));
 }
 

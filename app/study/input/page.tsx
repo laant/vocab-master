@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { fetchMultipleWords, getFirstDefinition } from "@/lib/dictionary-api";
 import { saveSession, setCurrentSession, generateSessionId, getAllProgress, getSessions } from "@/lib/storage";
-import { fetchVisibleCategories, fetchGroupsByCategory, CategoryInfo, WordGroup } from "@/lib/admin";
+import { fetchVisibleCategories, fetchGroupsByCategory, CategoryInfo, WordGroup, GRADE_LABELS, Grade } from "@/lib/admin";
 import { supabase } from "@/lib/supabase";
 import { getSelectedCategory, setSelectedCategory as saveSelectedCategory } from "@/lib/storage";
 import { WordData } from "@/types";
@@ -233,6 +233,9 @@ export default function InputPage() {
                     <div>
                       <div className="flex items-center gap-2">
                         <h3 className="font-bold">{cat.name}</h3>
+                        <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-500">
+                          {GRADE_LABELS[cat.grade as Grade] || '일반'}
+                        </span>
                         {!cat.is_public && (
                           <span className="material-symbols-outlined text-orange-400 text-base">lock</span>
                         )}
