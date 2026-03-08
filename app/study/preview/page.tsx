@@ -10,6 +10,7 @@ export default function PreviewPage() {
   const router = useRouter();
   const [session, setSession] = useState<StudySession | null>(null);
   const [currentIndex, setCurrentIndex] = useState(0);
+  const [passedWords, setPassedWords] = useState<string[]>([]);
 
   useEffect(() => {
     const s = getCurrentSession();
@@ -18,6 +19,7 @@ export default function PreviewPage() {
       return;
     }
     setSession(s);
+    setPassedWords(s.passedWords || []);
   }, [router]);
 
   // 카드가 바뀔 때마다 발음 자동 재생
@@ -45,19 +47,29 @@ export default function PreviewPage() {
     }
   };
 
-  const goNext = () => {
+  const finishStep1 = (finalPassed: string[]) => {
+    const updated = { ...session, currentStep: 2, passedWords: finalPassed };
+    setCurrentSession(updated);
+    router.push("/study/quiz");
+  };
+
+  const handlePass = () => {
+    const newPassed = passedWords.includes(word.word)
+      ? passedWords
+      : [...passedWords, word.word];
+    setPassedWords(newPassed);
     if (currentIndex < total - 1) {
       setCurrentIndex(currentIndex + 1);
     } else {
-      const updated = { ...session, currentStep: 2 };
-      setCurrentSession(updated);
-      router.push("/study/quiz");
+      finishStep1(newPassed);
     }
   };
 
-  const goPrev = () => {
-    if (currentIndex > 0) {
-      setCurrentIndex(currentIndex - 1);
+  const handleCheck = () => {
+    if (currentIndex < total - 1) {
+      setCurrentIndex(currentIndex + 1);
+    } else {
+      finishStep1(passedWords);
     }
   };
 
@@ -142,18 +154,17 @@ export default function PreviewPage() {
       {/* Navigation Buttons */}
       <footer className="p-4 sm:p-6 flex gap-4 bg-background/95 backdrop-blur-sm sticky bottom-0 border-t border-slate-200 mb-16 md:mb-0">
         <button
-          onClick={goPrev}
-          disabled={currentIndex === 0}
-          className="flex-1 py-4 px-6 rounded-xl font-bold text-slate-500 bg-slate-100 hover:bg-slate-200 transition-colors flex items-center justify-center gap-2 disabled:opacity-30 disabled:cursor-not-allowed"
+          onClick={handlePass}
+          className="flex-1 py-4 px-6 rounded-xl font-bold text-green-600 bg-green-50 border-2 border-green-200 hover:bg-green-100 transition-colors flex items-center justify-center gap-2"
         >
-          <span className="material-symbols-outlined">arrow_back</span>
-          <span>이전</span>
+          <span className="material-symbols-outlined">check_circle</span>
+          <span>Pass</span>
         </button>
         <button
-          onClick={goNext}
+          onClick={handleCheck}
           className="flex-[2] py-4 px-6 rounded-xl font-bold text-white bg-primary hover:bg-primary/90 shadow-lg shadow-primary/20 transition-all flex items-center justify-center gap-2"
         >
-          <span>{currentIndex < total - 1 ? "다음 단어" : "퀴즈 시작"}</span>
+          <span>Check</span>
           <span className="material-symbols-outlined">arrow_forward</span>
         </button>
       </footer>

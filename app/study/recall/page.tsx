@@ -16,6 +16,7 @@ interface LetterSlot {
 export default function RecallPage() {
   const router = useRouter();
   const [session, setSession] = useState<StudySession | null>(null);
+  const [studyWords, setStudyWords] = useState<WordData[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [slots, setSlots] = useState<LetterSlot[]>([]);
   const [letterBank, setLetterBank] = useState<{ letter: string; used: boolean }[]>([]);
@@ -69,11 +70,11 @@ export default function RecallPage() {
     setAnswerState("idle");
   }, []);
 
-  const goNextAuto = useCallback((sess: StudySession, idx: number, wrongs: string[]) => {
-    if (idx < sess.words.length - 1) {
+  const goNextAuto = useCallback((sess: StudySession, words: WordData[], idx: number, wrongs: string[]) => {
+    if (idx < words.length - 1) {
       const nextIdx = idx + 1;
       setCurrentIndex(nextIdx);
-      setupWord(sess.words[nextIdx].word);
+      setupWord(words[nextIdx].word);
     } else {
       const updated = { ...sess, currentStep: 4, wrongWords: wrongs };
       setCurrentSession(updated);
@@ -89,7 +90,18 @@ export default function RecallPage() {
     }
     setSession(s);
     setWrongWords(s.wrongWords || []);
-    setupWord(s.words[0].word);
+    const passed = s.passedWords || [];
+    const filtered = passed.length > 0
+      ? s.words.filter((w) => !passed.includes(w.word))
+      : s.words;
+    if (filtered.length === 0) {
+      const updated = { ...s, currentStep: 4, wrongWords: s.wrongWords || [] };
+      setCurrentSession(updated);
+      router.push("/study/listening");
+      return;
+    }
+    setStudyWords(filtered);
+    setupWord(filtered[0].word);
   }, [router, setupWord]);
 
   useEffect(() => {
@@ -109,10 +121,10 @@ export default function RecallPage() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
 
-  if (!session) return null;
+  if (!session || studyWords.length === 0) return null;
 
-  const currentWord = session.words[currentIndex];
-  const total = session.words.length;
+  const currentWord = studyWords[currentIndex];
+  const total = studyWords.length;
 
   const blankSlots = slots
     .map((s, i) => ({ ...s, index: i }))
@@ -120,7 +132,7 @@ export default function RecallPage() {
 
   const scheduleNext = (newWrongs: string[]) => {
     timerRef.current = setTimeout(() => {
-      goNextAuto(session, currentIndex, newWrongs);
+      goNextAuto(session, studyWords, currentIndex, newWrongs);
     }, 1000);
   };
 

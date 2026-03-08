@@ -21,6 +21,7 @@ export interface StudySession {
   words: WordData[];
   currentStep: number; // 0~5
   wrongWords: string[]; // 틀린 단어 목록
+  passedWords?: string[]; // Step 1에서 Pass한 단어 (Step 2~4 스킵, Step 5에만 출제)
   createdAt: string;
 }
 

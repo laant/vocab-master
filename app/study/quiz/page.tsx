@@ -21,6 +21,7 @@ type AnswerState = "idle" | "correct" | "wrong";
 export default function QuizPage() {
   const router = useRouter();
   const [session, setSession] = useState<StudySession | null>(null);
+  const [studyWords, setStudyWords] = useState<WordData[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [choices, setChoices] = useState<{ word: WordData; label: string }[]>([]);
   const [selected, setSelected] = useState<number | null>(null);
@@ -41,12 +42,11 @@ export default function QuizPage() {
   }, []);
 
   const generateChoices = useCallback(
-    (s: StudySession, idx: number) => {
-      const currentWord = s.words[idx];
-      const correctLabel = currentWord.korean || getFirstDefinition(currentWord);
+    (allWords: WordData[], targetWord: WordData) => {
+      const correctLabel = targetWord.korean || getFirstDefinition(targetWord);
 
-      const others = s.words
-        .filter((_, i) => i !== idx)
+      const others = allWords
+        .filter((w) => w.word !== targetWord.word)
         .map((w) => ({
           word: w,
           label: w.korean || getFirstDefinition(w),
@@ -54,32 +54,13 @@ export default function QuizPage() {
       const wrongChoices = shuffle(others).slice(0, 3);
 
       const allChoices = shuffle([
-        { word: currentWord, label: correctLabel },
+        { word: targetWord, label: correctLabel },
         ...wrongChoices,
       ]);
       setChoices(allChoices);
     },
     []
   );
-
-  const goNext = useCallback(() => {
-    if (timerRef.current) clearTimeout(timerRef.current);
-    setSelected(null);
-    setAnswerState("idle");
-
-    if (!session) return;
-
-    if (currentIndex < session.words.length - 1) {
-      const nextIdx = currentIndex + 1;
-      setCurrentIndex(nextIdx);
-      generateChoices(session, nextIdx);
-      playAudio(session.words[nextIdx]);
-    } else {
-      const updated = { ...session, currentStep: 3, wrongWords };
-      setCurrentSession(updated);
-      router.push("/study/recall");
-    }
-  }, [session, currentIndex, wrongWords, generateChoices, playAudio, router]);
 
   useEffect(() => {
     const s = getCurrentSession();
@@ -88,8 +69,20 @@ export default function QuizPage() {
       return;
     }
     setSession(s);
-    generateChoices(s, 0);
-    playAudio(s.words[0]);
+    const passed = s.passedWords || [];
+    const filtered = passed.length > 0
+      ? s.words.filter((w) => !passed.includes(w.word))
+      : s.words;
+    // passed가 전부면 바로 다음 단계로
+    if (filtered.length === 0) {
+      const updated = { ...s, currentStep: 3, wrongWords: s.wrongWords || [] };
+      setCurrentSession(updated);
+      router.push("/study/recall");
+      return;
+    }
+    setStudyWords(filtered);
+    generateChoices(s.words, filtered[0]);
+    playAudio(filtered[0]);
   }, [router, generateChoices, playAudio]);
 
   useEffect(() => {
@@ -110,10 +103,10 @@ export default function QuizPage() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
 
-  if (!session) return null;
+  if (!session || studyWords.length === 0) return null;
 
-  const currentWord = session.words[currentIndex];
-  const total = session.words.length;
+  const currentWord = studyWords[currentIndex];
+  const total = studyWords.length;
   const audioUrl = getAudioUrl(currentWord);
 
   const handleSelect = (index: number) => {
@@ -133,8 +126,8 @@ export default function QuizPage() {
         if (currentIndex < total - 1) {
           const nextIdx = currentIndex + 1;
           setCurrentIndex(nextIdx);
-          generateChoices(session, nextIdx);
-          playAudio(session.words[nextIdx]);
+          generateChoices(session.words, studyWords[nextIdx]);
+          playAudio(studyWords[nextIdx]);
         } else {
           const updated = { ...session, currentStep: 3, wrongWords };
           setCurrentSession(updated);
@@ -150,7 +143,7 @@ export default function QuizPage() {
       timerRef.current = setTimeout(() => {
         setSelected(null);
         setAnswerState("idle");
-        generateChoices(session, currentIndex);
+        generateChoices(session.words, currentWord);
         playAudio(currentWord);
       }, 3000);
     }
