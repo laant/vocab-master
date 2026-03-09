@@ -246,7 +246,7 @@ export default function ProfilePage() {
       </div>
 
       {/* 계정 정보 */}
-      <div className="bg-white rounded-xl p-6 shadow-sm border border-slate-200">
+      <div className="bg-white rounded-xl p-6 shadow-sm border border-slate-200 mb-6">
         <h3 className="font-bold mb-3">계정 정보</h3>
         <p className="text-sm text-slate-500">
           <span className="text-slate-400">이메일:</span> {email}
@@ -254,6 +254,40 @@ export default function ProfilePage() {
         <p className="text-sm text-slate-500 mt-1">
           <span className="text-slate-400">ID:</span> {userId.slice(0, 8)}...
         </p>
+      </div>
+
+      {/* 회원 탈퇴 */}
+      <div className="bg-white rounded-xl p-6 shadow-sm border border-red-200">
+        <h3 className="font-bold text-red-600 mb-2">회원 탈퇴</h3>
+        <p className="text-xs text-slate-500 mb-4">탈퇴 시 모든 학습 기록, 프로필, 배틀 점수가 영구 삭제되며 복구할 수 없습니다.</p>
+        <button
+          onClick={async () => {
+            if (!confirm('정말 탈퇴하시겠습니까?\n모든 데이터가 영구 삭제됩니다.')) return;
+            if (!confirm('마지막 확인입니다.\n정말로 탈퇴를 진행할까요?')) return;
+
+            const { data: { session } } = await supabase.auth.getSession();
+            if (!session) return;
+
+            const res = await fetch('/api/delete-account', {
+              method: 'POST',
+              headers: { 'Authorization': `Bearer ${session.access_token}` },
+            });
+
+            if (res.ok) {
+              // localStorage 정리
+              const keys = Object.keys(localStorage).filter(k => k.startsWith('vocab_'));
+              keys.forEach(k => localStorage.removeItem(k));
+              await supabase.auth.signOut();
+              router.replace('/auth');
+            } else {
+              const data = await res.json();
+              alert('탈퇴 실패: ' + (data.error || '알 수 없는 오류'));
+            }
+          }}
+          className="px-5 py-2.5 rounded-xl border border-red-300 text-red-600 text-sm font-semibold hover:bg-red-50 transition-colors"
+        >
+          회원 탈퇴
+        </button>
       </div>
     </div>
   );
