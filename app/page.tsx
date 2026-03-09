@@ -105,88 +105,95 @@ export default function HomePage() {
     <div className="max-w-[1400px] mx-auto px-4 py-6 lg:px-8">
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* ===== 메인 영역 ===== */}
-        <div className="lg:col-span-8 flex flex-col gap-6">
+        <div className="lg:col-span-8 flex flex-col gap-4">
 
-          {/* Hero 배너 */}
-          <div className="relative overflow-hidden rounded-xl bg-gradient-to-r from-primary to-blue-400 p-6 sm:p-8 text-white shadow-lg shadow-primary/20">
-            <div className="relative z-10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6">
-              <div className="max-w-md">
-                <span className="inline-block px-2 py-1 rounded-md bg-white/20 text-xs font-semibold mb-3">
-                  영단어 마스터까지 도전해보세요
-                </span>
-                <h1 className="text-2xl sm:text-3xl font-bold mb-6">
-                  {levelInfo ? `LEVEL ${levelInfo.level} • ${getLevelTitle(levelInfo.level)}` : "시작해보세요"}
-                </h1>
-                <Link
-                  href="/study/input"
-                  className="inline-flex items-center gap-2 rounded-xl bg-white text-primary px-6 py-3 font-bold hover:bg-blue-50 transition-all transform hover:scale-105"
-                >
-                  <span>새 학습 시작</span>
-                  <span className="material-symbols-outlined">rocket_launch</span>
-                </Link>
+          {/* 3개 액션 카드 — 학습 시작 / 배틀 / 복습 */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            {/* 학습 시작 */}
+            <Link
+              href="/study/input"
+              className="relative overflow-hidden rounded-xl bg-gradient-to-br from-primary to-blue-500 p-5 sm:p-6 text-white shadow-lg shadow-primary/20 group hover:shadow-xl transition-all"
+            >
+              <div className="relative z-10">
+                <span className="material-symbols-outlined text-3xl mb-3 block opacity-90">rocket_launch</span>
+                <h3 className="font-bold text-lg mb-1">새 학습</h3>
+                <p className="text-white/70 text-xs">단어장을 선택하고 학습을 시작하세요</p>
               </div>
-              <div className="hidden md:flex w-40 h-40 bg-white/10 rounded-full items-center justify-center backdrop-blur-sm border border-white/20">
-                <span className="material-symbols-outlined text-7xl opacity-80">school</span>
+              <div className="absolute -right-6 -bottom-6 size-24 bg-white/10 rounded-full blur-2xl"></div>
+            </Link>
+
+            {/* 마스터 워드 배틀 */}
+            <Link
+              href="/battle"
+              className="relative overflow-hidden rounded-xl bg-gradient-to-br from-red-500 to-orange-500 p-5 sm:p-6 text-white shadow-lg shadow-red-500/20 group hover:shadow-xl transition-all"
+            >
+              <div className="relative z-10">
+                <span className="material-symbols-outlined text-3xl mb-3 block opacity-90">swords</span>
+                <h3 className="font-bold text-lg mb-1">워드 배틀</h3>
+                <p className="text-white/70 text-xs">타임어택으로 실력을 겨뤄보세요</p>
               </div>
-            </div>
-            <div className="absolute top-0 right-0 -mr-16 -mt-16 w-64 h-64 bg-white/10 rounded-full blur-3xl"></div>
+              <div className="absolute -right-6 -bottom-6 size-24 bg-white/10 rounded-full blur-2xl"></div>
+            </Link>
+
+            {/* 복습 챌린지 */}
+            <Link
+              href={reviewAvailable ? "/study/review" : "/wrong-words"}
+              className="relative overflow-hidden rounded-xl bg-gradient-to-br from-slate-800 to-slate-900 p-5 sm:p-6 text-white shadow-lg shadow-slate-900/20 group hover:shadow-xl transition-all"
+            >
+              <div className="relative z-10">
+                <span className="material-symbols-outlined text-3xl mb-3 block text-yellow-400" style={{ fontVariationSettings: "'FILL' 1" }}>emoji_events</span>
+                <h3 className="font-bold text-lg mb-1">복습 챌린지</h3>
+                <p className="text-white/60 text-xs">
+                  {reviewAvailable ? (
+                    <>
+                      난이도{" "}
+                      <span className={`font-bold ${reviewLevel === "hard" ? "text-red-400" : reviewLevel === "medium" ? "text-amber-400" : "text-green-400"}`}>
+                        {reviewLevel === "hard" ? "Hard" : reviewLevel === "medium" ? "Medium" : "Easy"}
+                      </span>
+                    </>
+                  ) : "오답 단어를 복습하세요"}
+                </p>
+              </div>
+              <div className="absolute -right-6 -bottom-6 size-24 bg-primary/15 rounded-full blur-2xl"></div>
+            </Link>
           </div>
 
-          {/* 통계 + 스트릭 카드 (2열) */}
+          {/* 레벨 + 스트릭 요약 */}
           <div className="grid grid-cols-2 gap-4">
-            {/* 오늘의 복습 / 추천 단어장 */}
-            <div className="flex flex-col gap-2 rounded-xl p-5 bg-primary/10 border border-primary/20">
-              <p className="text-slate-600 text-sm font-medium">추천 학습</p>
-              <div className="flex items-baseline gap-1">
-                <p className="text-3xl font-bold text-primary">
-                  {dueWords.length > 0 ? dueWords.length : stats.totalWords}
-                </p>
-                <p className="text-xs font-semibold text-slate-500">
-                  {dueWords.length > 0 ? "복습 단어" : "학습 단어"}
-                </p>
-              </div>
-              {dueWords.length > 0 ? (
-                <button
-                  onClick={() => {
-                    const wordsToStudy = dueWords.slice(0, 10).map((d) => d.wordData);
-                    const session = {
-                      id: generateSessionId(),
-                      name: `오늘의 복습 (${wordsToStudy.length}개)`,
-                      words: wordsToStudy,
-                      currentStep: 1,
-                      wrongWords: [],
-                      createdAt: new Date().toISOString(),
-                    };
-                    saveSession(session);
-                    setCurrentSession(session);
-                    router.push("/study/preview");
-                  }}
-                  className="flex items-center gap-1 text-primary text-xs font-bold mt-1"
-                >
-                  <span className="material-symbols-outlined text-xs">play_arrow</span>
-                  <span>복습 시작</span>
-                </button>
+            <div className="flex items-center gap-4 rounded-xl p-4 bg-white border border-slate-100 shadow-sm">
+              {levelInfo ? (
+                <>
+                  <div className="flex items-center justify-center w-12 h-12 rounded-full bg-primary/10">
+                    <span className="text-sm font-black text-primary">Lv.{levelInfo.level}</span>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-bold">{getLevelTitle(levelInfo.level)}</p>
+                    <div className="w-full bg-slate-100 h-1.5 rounded-full mt-1 overflow-hidden">
+                      <div className="bg-primary h-full rounded-full" style={{ width: `${(levelInfo.currentXp / levelInfo.requiredXp) * 100}%` }} />
+                    </div>
+                    <p className="text-[10px] text-slate-400 mt-0.5">{levelInfo.currentXp}/{levelInfo.requiredXp} XP</p>
+                  </div>
+                </>
               ) : (
-                <div className="flex items-center gap-1 text-emerald-600 text-xs font-bold mt-1">
-                  <span className="material-symbols-outlined text-xs">check_circle</span>
-                  <span>복습 완료!</span>
-                </div>
+                <>
+                  <div className="flex items-center justify-center w-12 h-12 rounded-full bg-slate-100">
+                    <span className="material-symbols-outlined text-slate-400">school</span>
+                  </div>
+                  <div>
+                    <p className="text-sm font-bold">학습을 시작하세요</p>
+                    <p className="text-[10px] text-slate-400">{stats.totalWords}단어 학습</p>
+                  </div>
+                </>
               )}
             </div>
-
-            {/* 스트릭 */}
-            <div className="flex flex-col gap-2 rounded-xl p-5 bg-slate-100 border border-slate-200">
-              <p className="text-slate-600 text-sm font-medium">연속 학습</p>
-              <div className="flex items-baseline gap-1">
-                <p className="text-3xl font-bold">{gameProfile?.streak || 0}</p>
-                <p className="text-xs font-semibold text-slate-500">일</p>
+            <div className="flex items-center gap-4 rounded-xl p-4 bg-white border border-slate-100 shadow-sm">
+              <div className="flex items-center justify-center w-12 h-12 rounded-full bg-orange-50">
+                <span className="material-symbols-outlined text-orange-500 text-2xl" style={{ fontVariationSettings: "'FILL' 1" }}>local_fire_department</span>
               </div>
-              {gameProfile && gameProfile.streak > 0 && (
-                <div className="flex items-center gap-1 text-orange-500 text-xs font-bold mt-1">
-                  <span className="material-symbols-outlined text-xs" style={{ fontVariationSettings: "'FILL' 1" }}>local_fire_department</span>
-                  <span>Keep it up!</span>
-                </div>
-              )}
+              <div>
+                <p className="text-2xl font-black">{gameProfile?.streak || 0}<span className="text-sm font-medium text-slate-400 ml-0.5">일</span></p>
+                <p className="text-[10px] text-slate-400">연속 학습</p>
+              </div>
             </div>
           </div>
 
@@ -288,7 +295,7 @@ export default function HomePage() {
             </Link>
           )}
 
-          {/* 학습 추이 차트 (간소화) */}
+          {/* 학습 추이 차트 */}
           {dailyStats.length >= 2 && (
             <div className="bg-white rounded-xl border border-slate-100 shadow-sm">
               <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
@@ -366,67 +373,63 @@ export default function HomePage() {
         </div>
 
         {/* ===== 사이드바 ===== */}
-        <div className="lg:col-span-4 flex flex-col gap-6">
+        <div className="lg:col-span-4 flex flex-col gap-4">
 
-          {/* 배틀 배너 */}
-          <Link href="/battle" className="block group">
-            <div className="relative overflow-hidden rounded-xl bg-gradient-to-r from-red-500 to-orange-500 p-6 text-white shadow-lg shadow-red-500/20">
-              <div className="relative z-10">
-                <div className="flex items-center gap-2 mb-2">
-                  <span className="material-symbols-outlined text-2xl">swords</span>
-                  <span className="text-xs font-bold uppercase tracking-widest opacity-80">워드 배틀</span>
-                </div>
-                <h4 className="font-bold text-lg mb-1">마스터 워드 배틀</h4>
-                <p className="text-white/70 text-xs">타임어택으로 실력을 겨뤄보세요!</p>
+          {/* 학습 통계 */}
+          <div className="bg-white p-5 rounded-xl border border-slate-100 shadow-sm">
+            <h3 className="font-bold mb-3">학습 통계</h3>
+            <div className="grid grid-cols-3 gap-3 text-center">
+              <div>
+                <p className="text-2xl font-bold text-primary">{stats.totalWords}</p>
+                <p className="text-[10px] text-slate-500">학습 단어</p>
               </div>
-              <div className="absolute -right-4 -bottom-4 size-24 bg-white/10 rounded-full blur-2xl"></div>
-              <span className="absolute right-4 top-1/2 -translate-y-1/2 material-symbols-outlined text-white/30 text-4xl group-hover:text-white/60 transition-colors">arrow_forward</span>
-            </div>
-          </Link>
-
-          {/* 학습 진도 */}
-          <div className="bg-white p-6 rounded-xl border border-slate-100 shadow-sm">
-            <h3 className="font-bold text-lg mb-4">학습 진도</h3>
-            <div className="relative pt-1">
-              <div className="flex mb-2 items-center justify-between">
-                {levelInfo && (
-                  <span className="text-xs font-semibold inline-block py-1 px-2 uppercase rounded-full text-primary bg-primary/10">
-                    Level {levelInfo.level}
-                  </span>
-                )}
-                <span className="text-xs font-semibold text-primary">
-                  {stats.totalWords} 단어
-                </span>
+              <div>
+                <p className="text-2xl font-bold">{stats.completedSessions}</p>
+                <p className="text-[10px] text-slate-500">완료 세션</p>
               </div>
-              {levelInfo && (
-                <div className="overflow-hidden h-3 mb-4 flex rounded-full bg-primary/10">
-                  <div
-                    className="flex flex-col text-center whitespace-nowrap text-white justify-center bg-primary rounded-full"
-                    style={{ width: `${(levelInfo.currentXp / levelInfo.requiredXp) * 100}%` }}
-                  />
-                </div>
-              )}
-              <div className="grid grid-cols-3 gap-3 text-center">
-                <div>
-                  <p className="text-2xl font-bold">{stats.totalWords}</p>
-                  <p className="text-[10px] text-slate-500">학습 단어</p>
-                </div>
-                <div>
-                  <p className="text-2xl font-bold">{stats.completedSessions}</p>
-                  <p className="text-[10px] text-slate-500">완료 세션</p>
-                </div>
-                <div>
-                  <p className="text-2xl font-bold">{stats.accuracy}<span className="text-sm text-slate-400">%</span></p>
-                  <p className="text-[10px] text-slate-500">정답률</p>
-                </div>
+              <div>
+                <p className="text-2xl font-bold">{stats.accuracy}<span className="text-sm text-slate-400">%</span></p>
+                <p className="text-[10px] text-slate-500">정답률</p>
               </div>
             </div>
           </div>
 
+          {/* 오늘의 복습 */}
+          {dueWords.length > 0 && (
+            <div className="bg-violet-50 p-5 rounded-xl border border-violet-200 shadow-sm">
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="font-bold text-violet-700 flex items-center gap-1.5">
+                  <span className="material-symbols-outlined text-lg">replay</span>
+                  오늘의 복습
+                </h3>
+                <span className="bg-violet-200 text-violet-700 px-2 py-0.5 rounded-full text-xs font-bold">{dueWords.length}개</span>
+              </div>
+              <button
+                onClick={() => {
+                  const wordsToStudy = dueWords.slice(0, 10).map((d) => d.wordData);
+                  const session = {
+                    id: generateSessionId(),
+                    name: `오늘의 복습 (${wordsToStudy.length}개)`,
+                    words: wordsToStudy,
+                    currentStep: 1,
+                    wrongWords: [],
+                    createdAt: new Date().toISOString(),
+                  };
+                  saveSession(session);
+                  setCurrentSession(session);
+                  router.push("/study/preview");
+                }}
+                className="w-full py-2.5 bg-violet-600 text-white rounded-lg text-sm font-bold hover:bg-violet-700 transition-colors"
+              >
+                복습 시작
+              </button>
+            </div>
+          )}
+
           {/* 배지 */}
           {gameProfile && gameProfile.badges.length > 0 && (
-            <div className="bg-white p-6 rounded-xl border border-slate-100 shadow-sm">
-              <h3 className="font-bold text-lg mb-3">획득한 배지</h3>
+            <div className="bg-white p-5 rounded-xl border border-slate-100 shadow-sm">
+              <h3 className="font-bold mb-3">획득한 배지</h3>
               <div className="flex flex-wrap gap-2">
                 {gameProfile.badges.map((badgeId) => {
                   const badge = BADGES.find((b) => b.id === badgeId);
@@ -450,54 +453,21 @@ export default function HomePage() {
           {/* 오답 단어 */}
           {weakWords.length > 0 && (
             <Link href="/wrong-words" className="block">
-              <div className="bg-red-50 p-6 rounded-xl border border-red-100 shadow-sm">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="font-bold text-lg text-red-700 flex items-center gap-2">
-                    <span className="material-symbols-outlined">error_outline</span>
+              <div className="bg-red-50 p-5 rounded-xl border border-red-100 shadow-sm">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="font-bold text-red-700 flex items-center gap-1.5 text-sm">
+                    <span className="material-symbols-outlined text-lg">error_outline</span>
                     오답 단어
                   </h3>
-                  <span className="bg-red-200 text-red-700 px-2 py-0.5 rounded-full text-xs font-bold">
-                    {weakWords.length}개
-                  </span>
+                  <span className="bg-red-200 text-red-700 px-2 py-0.5 rounded-full text-xs font-bold">{weakWords.length}개</span>
                 </div>
-                <p className="text-sm text-red-600 mb-4">최근 틀린 단어를 복습하세요.</p>
-                <div className="flex flex-wrap gap-2">
+                <div className="flex flex-wrap gap-1.5">
                   {weakWords.map((w) => (
-                    <span
-                      key={w.word}
-                      className="px-3 py-1 bg-white rounded-lg text-xs font-medium border border-red-200 text-slate-700"
-                    >
+                    <span key={w.word} className="px-2.5 py-1 bg-white rounded-lg text-xs font-medium border border-red-200 text-slate-700">
                       {w.word}
                     </span>
                   ))}
                 </div>
-              </div>
-            </Link>
-          )}
-
-          {/* 복습 */}
-          {reviewAvailable && (
-            <Link href="/study/review" className="block">
-              <div className="bg-slate-900 text-white p-6 rounded-xl shadow-xl overflow-hidden relative group">
-                <div className="relative z-10">
-                  <div className="flex items-center gap-2 mb-2">
-                    <span className="material-symbols-outlined text-yellow-400" style={{ fontVariationSettings: "'FILL' 1" }}>emoji_events</span>
-                    <span className="text-yellow-400 text-xs font-bold uppercase tracking-widest">복습 챌린지</span>
-                  </div>
-                  <h4 className="font-bold text-lg mb-1">단어 복습하기</h4>
-                  <p className="text-slate-400 text-xs mb-4">
-                    기존 단어로 복습해요 •
-                    <span className={`ml-1 font-bold ${
-                      reviewLevel === "hard" ? "text-red-400" : reviewLevel === "medium" ? "text-amber-400" : "text-green-400"
-                    }`}>
-                      {reviewLevel === "hard" ? "Hard" : reviewLevel === "medium" ? "Medium" : "Easy"}
-                    </span>
-                  </p>
-                  <button className="w-full py-3 bg-white/10 hover:bg-white/20 text-white rounded-lg text-sm font-bold transition-colors">
-                    복습 시작
-                  </button>
-                </div>
-                <div className="absolute -right-4 -bottom-4 size-32 bg-primary/20 rounded-full blur-3xl"></div>
               </div>
             </Link>
           )}
