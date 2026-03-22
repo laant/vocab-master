@@ -1,6 +1,8 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
-import Header from "@/components/Header";
+import AuthButton from "@/components/AuthButton";
+import { AdminNavLink, AdminTabLink } from "@/components/AdminLink";
+import { TeacherNavLink, TeacherTabLink } from "@/components/TeacherLink";
 
 export const viewport: Viewport = {
   themeColor: "#137fec",
@@ -41,13 +43,64 @@ export default function RootLayout({
           rel="stylesheet"
         />
       </head>
-      <body className="bg-background min-h-screen text-slate-900 antialiased">
+      <body className="bg-background min-h-screen text-slate-900 antialiased pb-20 md:pb-0">
         <Header />
         <main className="flex-1">{children}</main>
         <DataSourceFooter />
+        <MobileTabBar />
         <ServiceWorkerRegister />
       </body>
     </html>
+  );
+}
+
+function Header() {
+  return (
+    <header className="flex items-center justify-between border-b border-slate-200 bg-white px-4 sm:px-6 py-3 lg:px-40">
+      <div className="flex items-center gap-3">
+        <a href="/" className="flex items-center gap-3">
+          <span className="material-symbols-outlined text-3xl text-primary">
+            school
+          </span>
+          <h1 className="text-lg font-bold tracking-tight">VocabMaster</h1>
+        </a>
+      </div>
+      <nav className="hidden md:flex items-center gap-9">
+        <a
+          className="text-sm font-medium text-slate-600 hover:text-primary transition-colors"
+          href="/"
+        >
+          홈
+        </a>
+        <a
+          className="text-sm font-medium text-slate-600 hover:text-primary transition-colors"
+          href="/study/input"
+        >
+          새 학습
+        </a>
+        <a
+          className="text-sm font-medium text-slate-600 hover:text-primary transition-colors"
+          href="/wrong-words"
+        >
+          오답 노트
+        </a>
+        <a
+          className="text-sm font-medium text-slate-600 hover:text-primary transition-colors"
+          href="/leaderboard"
+        >
+          랭킹
+        </a>
+        <a
+          className="text-sm font-medium text-slate-600 hover:text-primary transition-colors"
+          href="/battle"
+        >
+          배틀
+        </a>
+        <TeacherNavLink />
+        <AdminNavLink />
+        <AuthButton />
+      </nav>
+    </header>
   );
 }
 
@@ -74,5 +127,34 @@ function DataSourceFooter() {
       <span className="mx-1.5">|</span>
       <span>영어 정의: Free Dictionary API</span>
     </footer>
+  );
+}
+
+function MobileTabBar() {
+  return (
+    <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 flex items-center justify-around py-2 md:hidden z-50">
+      <a href="/" className="flex flex-col items-center gap-0.5 px-3 py-1 text-slate-500 active:text-primary">
+        <span className="material-symbols-outlined text-2xl">home</span>
+        <span className="text-[10px] font-medium">홈</span>
+      </a>
+      <a href="/study/input" className="flex flex-col items-center gap-0.5 px-3 py-1 text-slate-500 active:text-primary">
+        <span className="material-symbols-outlined text-2xl">add_circle</span>
+        <span className="text-[10px] font-medium">새 학습</span>
+      </a>
+      <a href="/leaderboard" className="flex flex-col items-center gap-0.5 px-3 py-1 text-slate-500 active:text-primary">
+        <span className="material-symbols-outlined text-2xl">emoji_events</span>
+        <span className="text-[10px] font-medium">랭킹</span>
+      </a>
+      <a href="/battle" className="flex flex-col items-center gap-0.5 px-3 py-1 text-slate-500 active:text-primary">
+        <span className="material-symbols-outlined text-2xl">swords</span>
+        <span className="text-[10px] font-medium">배틀</span>
+      </a>
+      <a href="/profile" className="flex flex-col items-center gap-0.5 px-3 py-1 text-slate-500 active:text-primary">
+        <span className="material-symbols-outlined text-2xl">person</span>
+        <span className="text-[10px] font-medium">프로필</span>
+      </a>
+      <TeacherTabLink />
+      <AdminTabLink />
+    </nav>
   );
 }
