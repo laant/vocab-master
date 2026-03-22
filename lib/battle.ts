@@ -189,6 +189,39 @@ export async function getIndividualRanking(tier: GradeTier): Promise<BattleRankE
     .slice(0, 50);
 }
 
+// 배틀 일시정지 저장/불러오기
+export interface BattleSaveState {
+  tier: GradeTier;
+  score: number;
+  combo: number;
+  maxCombo: number;
+  correctCount: number;
+  currentIndex: number;
+  words: BattleWord[];
+  elapsedSeconds: number;
+  savedAt: string;
+}
+
+const BATTLE_SAVE_KEY = 'vocab_battle_save';
+
+export function saveBattleState(state: BattleSaveState): void {
+  localStorage.setItem(BATTLE_SAVE_KEY, JSON.stringify(state));
+}
+
+export function loadBattleSave(): BattleSaveState | null {
+  const raw = localStorage.getItem(BATTLE_SAVE_KEY);
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw) as BattleSaveState;
+  } catch {
+    return null;
+  }
+}
+
+export function clearBattleSave(): void {
+  localStorage.removeItem(BATTLE_SAVE_KEY);
+}
+
 // 그룹별 합산 랭킹
 export async function getGroupRanking(tier: GradeTier): Promise<GroupRankEntry[]> {
   const individuals = await getIndividualRanking(tier);

@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
-import { getBattleWordCounts, GradeTier, GRADE_TIER_LABELS, getMyBestScore } from "@/lib/battle";
+import { getBattleWordCounts, GradeTier, GRADE_TIER_LABELS, getMyBestScore, loadBattleSave, clearBattleSave, BattleSaveState } from "@/lib/battle";
 
 const TIER_INFO: { tier: GradeTier; icon: string; color: string; bg: string; border: string; gradient: string }[] = [
   { tier: "middle_only", icon: "school", color: "text-blue-600", bg: "bg-blue-50", border: "border-blue-200", gradient: "from-blue-500 to-blue-600" },
@@ -18,8 +18,13 @@ export default function BattlePage() {
   const [counts, setCounts] = useState<Record<GradeTier, number> | null>(null);
   const [bestScores, setBestScores] = useState<Record<GradeTier, number>>({ all: 0, high_below: 0, middle_only: 0 });
   const [selectedTier, setSelectedTier] = useState<GradeTier | null>(null);
+  const [savedGame, setSavedGame] = useState<BattleSaveState | null>(null);
 
   useEffect(() => {
+    // 저장된 게임 확인
+    const saved = loadBattleSave();
+    if (saved) setSavedGame(saved);
+
     supabase.auth.getUser().then(({ data: { user } }) => {
       if (user) {
         setUserId(user.id);
@@ -89,6 +94,10 @@ export default function BattlePage() {
             <span className="material-symbols-outlined text-violet-500 mt-0.5">trending_up</span>
             <p className="text-sm text-slate-600">Combo가 이어질수록 <span className="font-semibold text-slate-800">추가 점수 계속 상승</span></p>
           </div>
+          <div className="flex items-start gap-3 bg-blue-50 rounded-lg p-3 sm:col-span-2">
+            <span className="material-symbols-outlined text-blue-500 mt-0.5">bookmark</span>
+            <p className="text-sm text-slate-600"><span className="font-semibold text-slate-800">100문제마다</span> 일시정지 가능 &mdash; 저장 후 다음에 <span className="font-semibold text-slate-800">점수와 콤보를 유지</span>한 채 이어하기</p>
+          </div>
         </div>
       </div>
 
@@ -118,6 +127,39 @@ export default function BattlePage() {
           </div>
         </div>
       </div>
+
+      {/* 저장된 게임 이어하기 */}
+      {savedGame && (
+        <div className="bg-gradient-to-br from-orange-50 to-yellow-50 border-2 border-orange-200 rounded-xl p-5 sm:p-6 mb-6">
+          <div className="flex items-center gap-3 mb-3">
+            <div className="flex items-center justify-center w-10 h-10 rounded-full bg-orange-100">
+              <span className="material-symbols-outlined text-orange-600">bookmark</span>
+            </div>
+            <div>
+              <h3 className="font-bold text-slate-900">저장된 배틀이 있어요!</h3>
+              <p className="text-xs text-slate-500">{GRADE_TIER_LABELS[savedGame.tier]} &middot; {savedGame.correctCount}문제 진행 &middot; {savedGame.score}점</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-3 mb-4 text-sm">
+            <span className="px-2 py-0.5 bg-orange-100 text-orange-700 rounded font-bold">{savedGame.combo > 0 ? `${savedGame.combo}x 콤보` : "콤보 없음"}</span>
+            <span className="text-slate-400">최대 콤보 {savedGame.maxCombo}</span>
+          </div>
+          <div className="flex gap-3">
+            <button
+              onClick={() => router.push(`/battle/play?tier=${savedGame.tier}&resume=1`)}
+              className="flex-1 py-3 bg-gradient-to-r from-orange-500 to-yellow-500 text-white rounded-xl font-bold hover:from-orange-600 hover:to-yellow-600 transition-all"
+            >
+              이어서 도전하기
+            </button>
+            <button
+              onClick={() => { clearBattleSave(); setSavedGame(null); }}
+              className="px-4 py-3 bg-white border border-slate-200 text-slate-500 rounded-xl font-bold hover:bg-slate-50 transition-colors text-sm"
+            >
+              삭제
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* 준비되었나요? + 난이도 선택 + 버튼 */}
       <div className="bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 rounded-2xl p-6 sm:p-8 text-white shadow-xl">

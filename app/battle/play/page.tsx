@@ -3,19 +3,25 @@
 import { useEffect, useState, useRef, useCallback, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
-import { fetchBattleWords, submitBattleScore, getMyBestScore, BattleWord, GradeTier, GRADE_TIER_LABELS } from "@/lib/battle";
+import {
+  fetchBattleWords, submitBattleScore, getMyBestScore,
+  saveBattleState, loadBattleSave, clearBattleSave,
+  BattleWord, GradeTier, GRADE_TIER_LABELS,
+} from "@/lib/battle";
 import { playCorrectSound, playWrongSound } from "@/lib/sound";
 
-const TIME_LIMIT = 10; // 초
-const COMBO_THRESHOLD = 5; // 초 이내 정답 시 콤보 유지
+const TIME_LIMIT = 10;
+const COMBO_THRESHOLD = 5;
+const CHECKPOINT_INTERVAL = 100;
 
 function BattlePlayContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const tier = (searchParams.get("tier") || "middle_only") as GradeTier;
+  const isResume = searchParams.get("resume") === "1";
 
   const [userId, setUserId] = useState<string | null>(null);
-  const [phase, setPhase] = useState<"loading" | "countdown" | "playing" | "result">("loading");
+  const [phase, setPhase] = useState<"loading" | "countdown" | "playing" | "checkpoint" | "result">("loading");
   const [words, setWords] = useState<BattleWord[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [input, setInput] = useState("");
@@ -30,6 +36,7 @@ function BattlePlayContent() {
   const [bestScore, setBestScore] = useState(0);
   const [countdownNum, setCountdownNum] = useState(3);
   const [comboDisplay, setComboDisplay] = useState(0);
+  const [prevElapsed, setPrevElapsed] = useState(0); // 이전 세션 누적 시간
 
   const inputRef = useRef<HTMLInputElement>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -42,12 +49,32 @@ function BattlePlayContent() {
         setUserId(user.id);
         getMyBestScore(user.id, tier).then(setBestScore).catch(() => {});
       }
+
+      // 이어하기
+      if (isResume) {
+        const saved = loadBattleSave();
+        if (saved && saved.tier === tier) {
+          setWords(saved.words);
+          setCurrentIndex(saved.currentIndex);
+          setScore(saved.score);
+          setCombo(saved.combo);
+          setMaxCombo(saved.maxCombo);
+          setCorrectCount(saved.correctCount);
+          setPrevElapsed(saved.elapsedSeconds);
+          setComboDisplay(saved.combo);
+          clearBattleSave();
+          setPhase("countdown");
+          return;
+        }
+      }
+
+      // 새 게임
       fetchBattleWords(tier).then((w) => {
         setWords(w);
         setPhase("countdown");
       });
     });
-  }, [router, tier]);
+  }, [router, tier, isResume]);
 
   // 카운트다운
   useEffect(() => {
@@ -69,7 +96,6 @@ function BattlePlayContent() {
     timerRef.current = setInterval(() => {
       setTimeLeft((t) => {
         if (t <= 0.1) {
-          // 시간 초과 → 오답 처리
           clearInterval(timerRef.current!);
           handleTimeout();
           return 0;
@@ -97,18 +123,21 @@ function BattlePlayContent() {
     }
   }, [phase, currentIndex, answerState]);
 
+  const getElapsed = useCallback(() => {
+    return prevElapsed + Math.round((Date.now() - startTime) / 1000);
+  }, [prevElapsed, startTime]);
+
   const finishBattle = useCallback(() => {
     if (timerRef.current) clearInterval(timerRef.current);
-    const elapsed = Math.round((Date.now() - startTime) / 1000);
+    const elapsed = getElapsed();
     setTotalTime(elapsed);
     setPhase("result");
+    clearBattleSave();
 
-    // 점수 저장
-    const total = currentIndex + 1;
     if (userId) {
-      submitBattleScore(tier, score, maxCombo, correctCount, total, elapsed);
+      submitBattleScore(tier, score, maxCombo, correctCount, currentIndex + 1, elapsed);
     }
-  }, [startTime, score, maxCombo, correctCount, currentIndex, userId, tier]);
+  }, [getElapsed, score, maxCombo, correctCount, currentIndex, userId, tier]);
 
   const handleTimeout = useCallback(() => {
     playWrongSound();
@@ -117,11 +146,44 @@ function BattlePlayContent() {
   }, [finishBattle]);
 
   const moveNext = useCallback(() => {
+    const nextIndex = currentIndex + 1;
+
+    // 100문제마다 체크포인트
+    if (nextIndex > 0 && nextIndex % CHECKPOINT_INTERVAL === 0) {
+      if (timerRef.current) clearInterval(timerRef.current);
+      setCurrentIndex(nextIndex);
+      setAnswerState("idle");
+      setInput("");
+      setPhase("checkpoint");
+      return;
+    }
+
     setAnswerState("idle");
     setInput("");
-    setCurrentIndex((i) => i + 1);
+    setCurrentIndex(nextIndex);
     questionStartRef.current = Date.now();
-  }, []);
+  }, [currentIndex]);
+
+  const handleContinueFromCheckpoint = () => {
+    setPhase("playing");
+    questionStartRef.current = Date.now();
+  };
+
+  const handlePauseAndSave = () => {
+    const elapsed = getElapsed();
+    saveBattleState({
+      tier,
+      score,
+      combo,
+      maxCombo,
+      correctCount,
+      currentIndex,
+      words,
+      elapsedSeconds: elapsed,
+      savedAt: new Date().toISOString(),
+    });
+    router.push("/battle");
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -133,27 +195,23 @@ function BattlePlayContent() {
     const isCorrect = input.trim().toLowerCase() === currentWord.word.toLowerCase();
 
     if (!isCorrect || elapsed > TIME_LIMIT) {
-      // 오답 또는 시간 초과 → 배틀 종료
       playWrongSound();
       setAnswerState("wrong");
       setTimeout(() => finishBattle(), 1500);
       return;
     }
 
-    // 정답
     playCorrectSound();
     setCorrectCount((c) => c + 1);
 
     if (elapsed <= COMBO_THRESHOLD) {
-      // 5초 이내: 콤보 유지 + 보너스
       const newCombo = combo + 1;
-      const points = 10 + combo; // 현재 콤보가 보너스
+      const points = 10 + combo;
       setCombo(newCombo);
       setMaxCombo((m) => Math.max(m, newCombo));
       setScore((s) => s + points);
       setComboDisplay(newCombo);
     } else {
-      // 5~10초: 10점, 콤보 리셋
       setScore((s) => s + 10);
       setCombo(0);
       setComboDisplay(0);
@@ -178,6 +236,11 @@ function BattlePlayContent() {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh]">
         <p className="text-slate-500 font-bold mb-4">{GRADE_TIER_LABELS[tier]}</p>
+        {isResume && currentIndex > 0 && (
+          <p className="text-sm text-orange-500 font-bold mb-2">
+            #{currentIndex + 1}부터 이어서 시작!
+          </p>
+        )}
         <div className="text-8xl font-black text-primary animate-pulse">
           {countdownNum || "GO!"}
         </div>
@@ -185,7 +248,56 @@ function BattlePlayContent() {
     );
   }
 
-  // 결과
+  // 체크포인트 (100문제마다)
+  if (phase === "checkpoint") {
+    return (
+      <div className="max-w-md mx-auto px-4 py-8">
+        <div className="bg-white rounded-2xl border border-slate-100 shadow-lg p-8 text-center">
+          <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-gradient-to-br from-orange-400 to-yellow-400 text-white mb-4">
+            <span className="material-symbols-outlined text-4xl">flag</span>
+          </div>
+          <h2 className="text-2xl font-bold mb-1">{currentIndex}문제 돌파!</h2>
+          <p className="text-slate-500 text-sm mb-6">대단해요! 계속 도전하시겠어요?</p>
+
+          <div className="grid grid-cols-3 gap-4 mb-8">
+            <div className="bg-slate-50 rounded-xl p-3">
+              <p className="text-2xl font-bold text-primary">{score}<span className="text-sm text-slate-400">점</span></p>
+              <p className="text-[10px] text-slate-500">현재 점수</p>
+            </div>
+            <div className="bg-slate-50 rounded-xl p-3">
+              <p className="text-2xl font-bold">{correctCount}<span className="text-sm text-slate-400">개</span></p>
+              <p className="text-[10px] text-slate-500">연속 정답</p>
+            </div>
+            <div className="bg-slate-50 rounded-xl p-3">
+              <p className="text-2xl font-bold">{combo > 0 ? `${combo}x` : "-"}</p>
+              <p className="text-[10px] text-slate-500">현재 콤보</p>
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-3">
+            <button
+              onClick={handleContinueFromCheckpoint}
+              className="w-full py-3 bg-gradient-to-r from-red-500 to-orange-500 text-white rounded-xl font-bold text-lg hover:from-red-600 hover:to-orange-600 transition-all"
+            >
+              계속 도전하기
+            </button>
+            <button
+              onClick={handlePauseAndSave}
+              className="w-full py-3 bg-slate-100 text-slate-700 rounded-xl font-bold hover:bg-slate-200 transition-colors"
+            >
+              저장하고 나중에 이어하기
+            </button>
+          </div>
+
+          <p className="text-xs text-slate-400 mt-4">
+            저장하면 현재 점수와 콤보가 그대로 유지됩니다
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  // 결과 (오답/시간초과로 종료)
   if (phase === "result") {
     const isNewBest = score > bestScore;
 
@@ -229,7 +341,6 @@ function BattlePlayContent() {
               <p className="text-xs text-blue-600 mb-3">로그인하면 점수가 랭킹에 등록됩니다.</p>
               <button
                 onClick={() => {
-                  // 결과를 sessionStorage에 임시 저장
                   sessionStorage.setItem("vocab_battle_pending", JSON.stringify({
                     tier, score, maxCombo, correctCount, totalCount: currentIndex + 1, timeSeconds: totalTime,
                   }));
@@ -255,6 +366,7 @@ function BattlePlayContent() {
                 setCountdownNum(3);
                 setComboDisplay(0);
                 setAnswerState("idle");
+                setPrevElapsed(0);
                 fetchBattleWords(tier).then((w) => {
                   setWords(w);
                   setPhase("countdown");
