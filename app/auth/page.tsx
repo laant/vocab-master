@@ -1,15 +1,18 @@
 'use client';
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { syncFromSupabase } from '@/lib/sync';
 import { getUserProfile } from '@/lib/leaderboard';
+import { submitBattleScore } from '@/lib/battle';
 
 type Mode = 'login' | 'signup';
 
-export default function AuthPage() {
+function AuthContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const redirectTo = searchParams.get('redirect');
   const [mode, setMode] = useState<Mode>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -33,6 +36,17 @@ export default function AuthPage() {
         if (error) throw error;
         // 로그인 성공 → Supabase에서 데이터 동기화
         await syncFromSupabase();
+
+        // 배틀 점수 pending이 있으면 저장
+        const pendingBattle = sessionStorage.getItem('vocab_battle_pending');
+        if (pendingBattle) {
+          try {
+            const b = JSON.parse(pendingBattle);
+            await submitBattleScore(b.tier, b.score, b.maxCombo, b.correctCount, b.totalCount, b.timeSeconds);
+          } catch { /* ignore */ }
+          sessionStorage.removeItem('vocab_battle_pending');
+        }
+
         // 닉네임 미설정 시 프로필 페이지로 이동
         if (authData.user) {
           const profile = await getUserProfile(authData.user.id);
@@ -41,7 +55,7 @@ export default function AuthPage() {
             return;
           }
         }
-        router.push('/');
+        router.push(redirectTo || '/');
       }
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : '오류가 발생했습니다';
@@ -130,5 +144,17 @@ export default function AuthPage() {
         </a>
       </div>
     </div>
+  );
+}
+
+export default function AuthPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex items-center justify-center min-h-[50vh]">
+        <span className="material-symbols-outlined text-4xl animate-spin text-primary">progress_activity</span>
+      </div>
+    }>
+      <AuthContent />
+    </Suspense>
   );
 }

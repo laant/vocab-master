@@ -38,12 +38,10 @@ function BattlePlayContent() {
   // 초기화
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => {
-      if (!user) {
-        router.replace("/auth");
-        return;
+      if (user) {
+        setUserId(user.id);
+        getMyBestScore(user.id, tier).then(setBestScore).catch(() => {});
       }
-      setUserId(user.id);
-      getMyBestScore(user.id, tier).then(setBestScore).catch(() => {});
       fetchBattleWords(tier).then((w) => {
         setWords(w);
         setPhase("countdown");
@@ -223,6 +221,26 @@ function BattlePlayContent() {
               <p className="text-[10px] text-slate-500">소요 시간</p>
             </div>
           </div>
+
+          {/* 비로그인 유저: 기록 저장 유도 */}
+          {!userId && score > 0 && (
+            <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-4">
+              <p className="text-sm font-bold text-blue-800 mb-1">기록을 저장하시겠어요?</p>
+              <p className="text-xs text-blue-600 mb-3">로그인하면 점수가 랭킹에 등록됩니다.</p>
+              <button
+                onClick={() => {
+                  // 결과를 sessionStorage에 임시 저장
+                  sessionStorage.setItem("vocab_battle_pending", JSON.stringify({
+                    tier, score, maxCombo, correctCount, totalCount: currentIndex + 1, timeSeconds: totalTime,
+                  }));
+                  router.push("/auth?redirect=/battle");
+                }}
+                className="w-full py-2.5 bg-blue-600 text-white rounded-lg font-bold text-sm hover:bg-blue-700 transition-colors"
+              >
+                로그인하고 기록 저장하기
+              </button>
+            </div>
+          )}
 
           <div className="flex flex-col gap-3">
             <button

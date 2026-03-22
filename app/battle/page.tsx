@@ -21,22 +21,18 @@ export default function BattlePage() {
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => {
-      if (!user) {
-        router.replace("/auth");
-        return;
+      if (user) {
+        setUserId(user.id);
+        Promise.all([
+          getMyBestScore(user.id, "all").catch(() => 0),
+          getMyBestScore(user.id, "high_below").catch(() => 0),
+          getMyBestScore(user.id, "middle_only").catch(() => 0),
+        ]).then(([all, hb, mo]) => {
+          setBestScores({ all, high_below: hb, middle_only: mo });
+        });
       }
-      setUserId(user.id);
       setLoading(false);
-
       getBattleWordCounts().then(setCounts).catch(() => {});
-
-      Promise.all([
-        getMyBestScore(user.id, "all").catch(() => 0),
-        getMyBestScore(user.id, "high_below").catch(() => 0),
-        getMyBestScore(user.id, "middle_only").catch(() => 0),
-      ]).then(([all, hb, mo]) => {
-        setBestScores({ all, high_below: hb, middle_only: mo });
-      });
     });
   }, [router]);
 
