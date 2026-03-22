@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
-import { getBattleWordCounts, GradeTier, GRADE_TIER_LABELS, getMyBestScore, loadBattleSave, clearBattleSave, BattleSaveState } from "@/lib/battle";
+import { getBattleWordCounts, GradeTier, GRADE_TIER_LABELS, getMyBestScore, loadBattleSave, clearBattleSave, BattleSaveState, GRADE_ORDER, GRADE_LABELS } from "@/lib/battle";
 
 const TIER_INFO: { tier: GradeTier; icon: string; color: string; bg: string; border: string; gradient: string }[] = [
   { tier: "middle_only", icon: "school", color: "text-blue-600", bg: "bg-blue-50", border: "border-blue-200", gradient: "from-blue-500 to-blue-600" },
@@ -94,9 +94,13 @@ export default function BattlePage() {
             <span className="material-symbols-outlined text-violet-500 mt-0.5">trending_up</span>
             <p className="text-sm text-slate-600">Combo가 이어질수록 <span className="font-semibold text-slate-800">추가 점수 계속 상승</span></p>
           </div>
-          <div className="flex items-start gap-3 bg-blue-50 rounded-lg p-3 sm:col-span-2">
+          <div className="flex items-start gap-3 bg-green-50 rounded-lg p-3">
+            <span className="material-symbols-outlined text-green-500 mt-0.5">trending_up</span>
+            <p className="text-sm text-slate-600"><span className="font-semibold text-slate-800">중등 단어</span>를 모두 풀면 자동으로 <span className="font-semibold text-slate-800">고등 단어</span>로 승급</p>
+          </div>
+          <div className="flex items-start gap-3 bg-blue-50 rounded-lg p-3">
             <span className="material-symbols-outlined text-blue-500 mt-0.5">bookmark</span>
-            <p className="text-sm text-slate-600"><span className="font-semibold text-slate-800">100문제마다</span> 일시정지 가능 &mdash; 저장 후 다음에 <span className="font-semibold text-slate-800">점수와 콤보를 유지</span>한 채 이어하기</p>
+            <p className="text-sm text-slate-600"><span className="font-semibold text-slate-800">100문제마다</span> 일시정지 &mdash; 저장 후 <span className="font-semibold text-slate-800">점수와 콤보 유지</span>한 채 이어하기</p>
           </div>
         </div>
       </div>
@@ -137,7 +141,7 @@ export default function BattlePage() {
             </div>
             <div>
               <h3 className="font-bold text-slate-900">저장된 배틀이 있어요!</h3>
-              <p className="text-xs text-slate-500">{GRADE_TIER_LABELS[savedGame.tier]} &middot; {savedGame.correctCount}문제 진행 &middot; {savedGame.score}점</p>
+              <p className="text-xs text-slate-500">{GRADE_TIER_LABELS[savedGame.tier]} &middot; {GRADE_LABELS[GRADE_ORDER[savedGame.gradeIndex || 0]]} 단어 &middot; {savedGame.questionOffset || savedGame.correctCount}문제 진행 &middot; {savedGame.score}점</p>
             </div>
           </div>
           <div className="flex items-center gap-3 mb-4 text-sm">

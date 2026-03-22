@@ -10,6 +10,15 @@ export const GRADE_TIER_LABELS: Record<GradeTier, string> = {
   middle_only: '중등이하',
 };
 
+// 등급 순서 (난이도 순): 중등 → 고등 → 일반
+export const GRADE_ORDER: Grade[] = ['middle', 'high', 'normal'];
+
+export const GRADE_LABELS: Record<Grade, string> = {
+  middle: '중등',
+  high: '고등',
+  normal: '일반',
+};
+
 export interface BattleWord {
   word: string;
   korean: string;
@@ -42,11 +51,13 @@ function gradesForTier(tier: GradeTier): Grade[] {
   }
 }
 
-// 해당 등급의 전체 단어 수집, 중복 제거, 셔플
-export async function fetchBattleWords(tier: GradeTier): Promise<BattleWord[]> {
-  const grades = gradesForTier(tier);
+// 특정 등급의 단어를 가져오기 (이미 출제된 단어 제외, 셔플)
+export async function fetchWordsForGrade(
+  grade: Grade,
+  excludeWords: Set<string>
+): Promise<BattleWord[]> {
   const metas = await fetchAllCategoryMetas();
-  const filtered = metas.filter((m: CategoryMeta) => grades.includes(m.grade));
+  const filtered = metas.filter((m: CategoryMeta) => m.grade === grade);
 
   const wordMap = new Map<string, BattleWord>();
 
@@ -54,9 +65,10 @@ export async function fetchBattleWords(tier: GradeTier): Promise<BattleWord[]> {
     const groups = await fetchGroupsByCategory(meta.name);
     for (const group of groups) {
       for (const w of group.words) {
-        if (!w.korean || wordMap.has(w.word.toLowerCase())) continue;
-        const audioUrl = w.phonetics?.find((p) => p.audio)?.audio || null;
-        wordMap.set(w.word.toLowerCase(), {
+        const key = w.word.toLowerCase();
+        if (!w.korean || wordMap.has(key) || excludeWords.has(key)) continue;
+        const audioUrl = w.phonetics?.find((p: { text?: string; audio?: string }) => p.audio)?.audio || null;
+        wordMap.set(key, {
           word: w.word,
           korean: w.korean,
           phonetic: w.phonetic || '',
@@ -196,8 +208,10 @@ export interface BattleSaveState {
   combo: number;
   maxCombo: number;
   correctCount: number;
-  currentIndex: number;
-  words: BattleWord[];
+  words: BattleWord[];       // 남은 미출제 단어
+  gradeIndex: number;        // 현재 등급 인덱스 (GRADE_ORDER 기준)
+  usedWords: string[];       // 출제된 단어 키 (중복 방지용)
+  questionOffset: number;    // 이전 세션까지 풀었던 총 문제 수
   elapsedSeconds: number;
   savedAt: string;
 }
@@ -212,7 +226,10 @@ export function loadBattleSave(): BattleSaveState | null {
   const raw = localStorage.getItem(BATTLE_SAVE_KEY);
   if (!raw) return null;
   try {
-    return JSON.parse(raw) as BattleSaveState;
+    const parsed = JSON.parse(raw);
+    // 새 포맷 필수 필드 확인 (구 포맷이면 무시)
+    if (!Array.isArray(parsed.usedWords)) return null;
+    return parsed as BattleSaveState;
   } catch {
     return null;
   }

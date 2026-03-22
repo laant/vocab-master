@@ -4,10 +4,12 @@ import { useEffect, useState, useRef, useCallback, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import {
-  fetchBattleWords, submitBattleScore, getMyBestScore,
+  fetchWordsForGrade, submitBattleScore, getMyBestScore,
   saveBattleState, loadBattleSave, clearBattleSave,
   BattleWord, GradeTier, GRADE_TIER_LABELS,
+  GRADE_ORDER, GRADE_LABELS,
 } from "@/lib/battle";
+import { Grade } from "@/lib/admin";
 import { playCorrectSound, playWrongSound } from "@/lib/sound";
 
 const TIME_LIMIT = 10;
@@ -36,7 +38,14 @@ function BattlePlayContent() {
   const [bestScore, setBestScore] = useState(0);
   const [countdownNum, setCountdownNum] = useState(3);
   const [comboDisplay, setComboDisplay] = useState(0);
-  const [prevElapsed, setPrevElapsed] = useState(0); // 이전 세션 누적 시간
+  const [prevElapsed, setPrevElapsed] = useState(0);
+
+  // 등급별 배치 로딩 상태
+  const [gradeIndex, setGradeIndex] = useState(0);
+  const [questionOffset, setQuestionOffset] = useState(0);
+  const [loadingNext, setLoadingNext] = useState(false);
+  const [allCleared, setAllCleared] = useState(false);
+  const usedWordsRef = useRef<Set<string>>(new Set());
 
   const inputRef = useRef<HTMLInputElement>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -44,7 +53,8 @@ function BattlePlayContent() {
 
   // 초기화
   useEffect(() => {
-    supabase.auth.getUser().then(({ data: { user } }) => {
+    async function init() {
+      const { data: { user } } = await supabase.auth.getUser();
       if (user) {
         setUserId(user.id);
         getMyBestScore(user.id, tier).then(setBestScore).catch(() => {});
@@ -53,27 +63,39 @@ function BattlePlayContent() {
       // 이어하기
       if (isResume) {
         const saved = loadBattleSave();
-        if (saved && saved.tier === tier) {
+        if (saved && saved.tier === tier && Array.isArray(saved.usedWords)) {
           setWords(saved.words);
-          setCurrentIndex(saved.currentIndex);
+          setCurrentIndex(0);
           setScore(saved.score);
           setCombo(saved.combo);
           setMaxCombo(saved.maxCombo);
           setCorrectCount(saved.correctCount);
           setPrevElapsed(saved.elapsedSeconds);
           setComboDisplay(saved.combo);
+          setGradeIndex(saved.gradeIndex);
+          setQuestionOffset(saved.questionOffset);
+          usedWordsRef.current = new Set(saved.usedWords);
           clearBattleSave();
           setPhase("countdown");
           return;
         }
       }
 
-      // 새 게임
-      fetchBattleWords(tier).then((w) => {
-        setWords(w);
-        setPhase("countdown");
-      });
-    });
+      // 새 게임: 첫 등급 단어 로드
+      let gi = 0;
+      let gradeWords: BattleWord[] = [];
+      while (gradeWords.length === 0 && gi < GRADE_ORDER.length) {
+        gradeWords = await fetchWordsForGrade(GRADE_ORDER[gi], new Set());
+        if (gradeWords.length === 0) gi++;
+      }
+
+      gradeWords.forEach(w => usedWordsRef.current.add(w.word.toLowerCase()));
+      setWords(gradeWords);
+      setGradeIndex(gi);
+      setPhase("countdown");
+    }
+
+    init();
   }, [router, tier, isResume]);
 
   // 카운트다운
@@ -127,17 +149,19 @@ function BattlePlayContent() {
     return prevElapsed + Math.round((Date.now() - startTime) / 1000);
   }, [prevElapsed, startTime]);
 
-  const finishBattle = useCallback(() => {
+  const finishBattle = useCallback((cleared = false) => {
     if (timerRef.current) clearInterval(timerRef.current);
     const elapsed = getElapsed();
     setTotalTime(elapsed);
+    setAllCleared(cleared);
     setPhase("result");
     clearBattleSave();
 
-    if (userId) {
-      submitBattleScore(tier, score, maxCombo, correctCount, currentIndex + 1, elapsed);
+    const total = questionOffset + currentIndex + (cleared ? 0 : 1);
+    if (userId && score > 0) {
+      submitBattleScore(tier, score, maxCombo, correctCount, total, elapsed);
     }
-  }, [getElapsed, score, maxCombo, correctCount, currentIndex, userId, tier]);
+  }, [getElapsed, score, maxCombo, correctCount, currentIndex, questionOffset, userId, tier]);
 
   const handleTimeout = useCallback(() => {
     playWrongSound();
@@ -147,9 +171,13 @@ function BattlePlayContent() {
 
   const moveNext = useCallback(() => {
     const nextIndex = currentIndex + 1;
+    const globalQ = questionOffset + nextIndex;
 
-    // 100문제마다 체크포인트
-    if (nextIndex > 0 && nextIndex % CHECKPOINT_INTERVAL === 0) {
+    // 현재 배치 소진 OR 100문제 체크포인트
+    const batchEnd = nextIndex >= words.length;
+    const regularCheckpoint = globalQ > 0 && globalQ % CHECKPOINT_INTERVAL === 0;
+
+    if (batchEnd || regularCheckpoint) {
       if (timerRef.current) clearInterval(timerRef.current);
       setCurrentIndex(nextIndex);
       setAnswerState("idle");
@@ -162,23 +190,50 @@ function BattlePlayContent() {
     setInput("");
     setCurrentIndex(nextIndex);
     questionStartRef.current = Date.now();
-  }, [currentIndex]);
+  }, [currentIndex, questionOffset, words.length]);
 
-  const handleContinueFromCheckpoint = () => {
+  const handleContinueFromCheckpoint = async () => {
+    // 현재 배치에 남은 단어가 있으면 바로 재개
+    if (currentIndex < words.length) {
+      setPhase("playing");
+      questionStartRef.current = Date.now();
+      return;
+    }
+
+    // 현재 등급 소진 → 다음 등급 로드
+    setLoadingNext(true);
+    let gi = gradeIndex;
+    let newWords: BattleWord[] = [];
+
+    while (newWords.length === 0 && gi < GRADE_ORDER.length - 1) {
+      gi++;
+      newWords = await fetchWordsForGrade(GRADE_ORDER[gi], usedWordsRef.current);
+    }
+
+    setLoadingNext(false);
+
+    if (newWords.length === 0) {
+      finishBattle(true);
+      return;
+    }
+
+    newWords.forEach(w => usedWordsRef.current.add(w.word.toLowerCase()));
+    setWords(prev => [...prev, ...newWords]);
+    setGradeIndex(gi);
     setPhase("playing");
     questionStartRef.current = Date.now();
   };
 
   const handlePauseAndSave = () => {
     const elapsed = getElapsed();
+    const globalQ = questionOffset + currentIndex;
     saveBattleState({
       tier,
-      score,
-      combo,
-      maxCombo,
-      correctCount,
-      currentIndex,
-      words,
+      score, combo, maxCombo, correctCount,
+      words: words.slice(currentIndex),
+      gradeIndex,
+      usedWords: [...usedWordsRef.current],
+      questionOffset: globalQ,
       elapsedSeconds: elapsed,
       savedAt: new Date().toISOString(),
     });
@@ -221,6 +276,35 @@ function BattlePlayContent() {
     setTimeout(() => moveNext(), 1000);
   };
 
+  const handleRestart = async () => {
+    setPhase("loading");
+    setCurrentIndex(0);
+    setInput("");
+    setScore(0);
+    setCombo(0);
+    setMaxCombo(0);
+    setCorrectCount(0);
+    setCountdownNum(3);
+    setComboDisplay(0);
+    setAnswerState("idle");
+    setPrevElapsed(0);
+    setQuestionOffset(0);
+    setAllCleared(false);
+    usedWordsRef.current = new Set();
+
+    let gi = 0;
+    let gradeWords: BattleWord[] = [];
+    while (gradeWords.length === 0 && gi < GRADE_ORDER.length) {
+      gradeWords = await fetchWordsForGrade(GRADE_ORDER[gi], new Set());
+      if (gradeWords.length === 0) gi++;
+    }
+
+    gradeWords.forEach(w => usedWordsRef.current.add(w.word.toLowerCase()));
+    setWords(gradeWords);
+    setGradeIndex(gi);
+    setPhase("countdown");
+  };
+
   // 로딩
   if (phase === "loading") {
     return (
@@ -236,9 +320,9 @@ function BattlePlayContent() {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh]">
         <p className="text-slate-500 font-bold mb-4">{GRADE_TIER_LABELS[tier]}</p>
-        {isResume && currentIndex > 0 && (
+        {isResume && questionOffset > 0 && (
           <p className="text-sm text-orange-500 font-bold mb-2">
-            #{currentIndex + 1}부터 이어서 시작!
+            #{questionOffset + 1}부터 이어서 시작!
           </p>
         )}
         <div className="text-8xl font-black text-primary animate-pulse">
@@ -248,16 +332,46 @@ function BattlePlayContent() {
     );
   }
 
-  // 체크포인트 (100문제마다)
+  // 체크포인트
   if (phase === "checkpoint") {
+    const globalQ = questionOffset + currentIndex;
+    const gradeExhausted = currentIndex >= words.length;
+    const allGradesExhausted = gradeExhausted && gradeIndex >= GRADE_ORDER.length - 1;
+    const nextGrade = gradeIndex < GRADE_ORDER.length - 1 ? GRADE_ORDER[gradeIndex + 1] : null;
+
     return (
       <div className="max-w-md mx-auto px-4 py-8">
         <div className="bg-white rounded-2xl border border-slate-100 shadow-lg p-8 text-center">
           <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-gradient-to-br from-orange-400 to-yellow-400 text-white mb-4">
             <span className="material-symbols-outlined text-4xl">flag</span>
           </div>
-          <h2 className="text-2xl font-bold mb-1">{currentIndex}문제 돌파!</h2>
-          <p className="text-slate-500 text-sm mb-6">대단해요! 계속 도전하시겠어요?</p>
+          <h2 className="text-2xl font-bold mb-1">{globalQ}문제 돌파!</h2>
+
+          {/* 등급 전환 안내 */}
+          {gradeExhausted && nextGrade && !allGradesExhausted && (
+            <div className="bg-violet-50 border border-violet-200 rounded-xl px-4 py-3 mb-4 mt-3">
+              <p className="text-sm font-bold text-violet-800">
+                {GRADE_LABELS[GRADE_ORDER[gradeIndex]]} 단어를 모두 풀었어요!
+              </p>
+              <p className="text-xs text-violet-600 mt-0.5">
+                다음은 <span className="font-bold">{GRADE_LABELS[nextGrade]}</span> 단어로 넘어갑니다
+              </p>
+            </div>
+          )}
+
+          {allGradesExhausted && (
+            <div className="bg-green-50 border border-green-200 rounded-xl px-4 py-3 mb-4 mt-3">
+              <p className="text-sm font-bold text-green-800">
+                모든 단어를 풀었어요! 대단합니다!
+              </p>
+            </div>
+          )}
+
+          {!gradeExhausted && (
+            <p className="text-slate-500 text-sm mb-4 mt-2">
+              현재 <span className="font-bold text-slate-700">{GRADE_LABELS[GRADE_ORDER[gradeIndex]]}</span> 단어 진행 중
+            </p>
+          )}
 
           <div className="grid grid-cols-3 gap-4 mb-8">
             <div className="bg-slate-50 rounded-xl p-3">
@@ -275,39 +389,70 @@ function BattlePlayContent() {
           </div>
 
           <div className="flex flex-col gap-3">
-            <button
-              onClick={handleContinueFromCheckpoint}
-              className="w-full py-3 bg-gradient-to-r from-red-500 to-orange-500 text-white rounded-xl font-bold text-lg hover:from-red-600 hover:to-orange-600 transition-all"
-            >
-              계속 도전하기
-            </button>
-            <button
-              onClick={handlePauseAndSave}
-              className="w-full py-3 bg-slate-100 text-slate-700 rounded-xl font-bold hover:bg-slate-200 transition-colors"
-            >
-              저장하고 나중에 이어하기
-            </button>
+            {!allGradesExhausted ? (
+              <>
+                <button
+                  onClick={handleContinueFromCheckpoint}
+                  disabled={loadingNext}
+                  className="w-full py-3 bg-gradient-to-r from-red-500 to-orange-500 text-white rounded-xl font-bold text-lg hover:from-red-600 hover:to-orange-600 transition-all disabled:opacity-50"
+                >
+                  {loadingNext ? (
+                    <span className="inline-flex items-center gap-2">
+                      <span className="material-symbols-outlined text-lg animate-spin">progress_activity</span>
+                      단어 불러오는 중...
+                    </span>
+                  ) : (
+                    "계속 도전하기"
+                  )}
+                </button>
+                <button
+                  onClick={handlePauseAndSave}
+                  disabled={loadingNext}
+                  className="w-full py-3 bg-slate-100 text-slate-700 rounded-xl font-bold hover:bg-slate-200 transition-colors"
+                >
+                  저장하고 나중에 이어하기
+                </button>
+              </>
+            ) : (
+              <button
+                onClick={() => finishBattle(true)}
+                className="w-full py-3 bg-gradient-to-r from-green-500 to-emerald-500 text-white rounded-xl font-bold text-lg hover:from-green-600 hover:to-emerald-600 transition-all"
+              >
+                배틀 완료!
+              </button>
+            )}
           </div>
 
-          <p className="text-xs text-slate-400 mt-4">
-            저장하면 현재 점수와 콤보가 그대로 유지됩니다
-          </p>
+          {!allGradesExhausted && (
+            <p className="text-xs text-slate-400 mt-4">
+              저장하면 현재 점수와 콤보가 그대로 유지됩니다
+            </p>
+          )}
         </div>
       </div>
     );
   }
 
-  // 결과 (오답/시간초과로 종료)
+  // 결과 (오답/시간초과/전체완료)
   if (phase === "result") {
     const isNewBest = score > bestScore;
+    const globalQ = questionOffset + currentIndex;
 
     return (
       <div className="max-w-md mx-auto px-4 py-8">
         <div className="bg-white rounded-2xl border border-slate-100 shadow-lg p-8 text-center">
-          <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-gradient-to-br from-red-500 to-orange-500 text-white mb-4">
-            <span className="material-symbols-outlined text-4xl">swords</span>
+          <div className={`inline-flex items-center justify-center w-20 h-20 rounded-full text-white mb-4 ${
+            allCleared
+              ? "bg-gradient-to-br from-green-500 to-emerald-500"
+              : "bg-gradient-to-br from-red-500 to-orange-500"
+          }`}>
+            <span className="material-symbols-outlined text-4xl">
+              {allCleared ? "emoji_events" : "swords"}
+            </span>
           </div>
-          <h2 className="text-2xl font-bold mb-1">배틀 종료!</h2>
+          <h2 className="text-2xl font-bold mb-1">
+            {allCleared ? "모든 단어 정복!" : "배틀 종료!"}
+          </h2>
           <p className="text-slate-500 text-sm mb-6">{GRADE_TIER_LABELS[tier]}</p>
 
           {isNewBest && (
@@ -342,7 +487,9 @@ function BattlePlayContent() {
               <button
                 onClick={() => {
                   sessionStorage.setItem("vocab_battle_pending", JSON.stringify({
-                    tier, score, maxCombo, correctCount, totalCount: currentIndex + 1, timeSeconds: totalTime,
+                    tier, score, maxCombo, correctCount,
+                    totalCount: globalQ + (allCleared ? 0 : 1),
+                    timeSeconds: totalTime,
                   }));
                   router.push("/auth?redirect=/battle");
                 }}
@@ -355,23 +502,7 @@ function BattlePlayContent() {
 
           <div className="flex flex-col gap-3">
             <button
-              onClick={() => {
-                setPhase("loading");
-                setCurrentIndex(0);
-                setInput("");
-                setScore(0);
-                setCombo(0);
-                setMaxCombo(0);
-                setCorrectCount(0);
-                setCountdownNum(3);
-                setComboDisplay(0);
-                setAnswerState("idle");
-                setPrevElapsed(0);
-                fetchBattleWords(tier).then((w) => {
-                  setWords(w);
-                  setPhase("countdown");
-                });
-              }}
+              onClick={handleRestart}
               className="w-full py-3 bg-primary text-white rounded-xl font-bold hover:bg-blue-600 transition-colors"
             >
               다시 도전
@@ -392,13 +523,14 @@ function BattlePlayContent() {
   const currentWord = words[currentIndex];
   const timerPercent = (timeLeft / TIME_LIMIT) * 100;
   const timerColor = timeLeft > 5 ? "bg-green-500" : timeLeft > 3 ? "bg-yellow-500" : "bg-red-500";
+  const displayNum = questionOffset + currentIndex + 1;
 
   return (
     <div className="max-w-lg mx-auto px-4 py-6">
       {/* 상단 정보 */}
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-3">
-          <span className="text-sm font-bold text-slate-500">#{currentIndex + 1}</span>
+          <span className="text-sm font-bold text-slate-500">#{displayNum}</span>
           {comboDisplay > 0 && (
             <span className="px-2 py-0.5 bg-orange-100 text-orange-600 rounded-full text-xs font-bold animate-pulse">
               {comboDisplay}x COMBO
