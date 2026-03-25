@@ -1,6 +1,21 @@
 import { supabase } from './supabase';
 import { GameProfile, StudySession, WordProgress } from '@/types';
 import { calcLevel, getLevelTitle } from './gamification';
+import { GradeTier, BattleWrongWord, GRADE_TIER_LABELS } from './battle';
+
+export interface StudentBattleInfo {
+  totalBattles: number;
+  bestScores: Record<GradeTier, number>;
+  recentBattles: {
+    grade_tier: GradeTier;
+    score: number;
+    correct_count: number;
+    total_count: number;
+    wrong_words: BattleWrongWord[];
+    created_at: string;
+  }[];
+  battleWrongWords: { word: string; korean: string; count: number }[];
+}
 
 export interface StudentStats {
   user_id: string;
@@ -24,6 +39,7 @@ export interface StudentStats {
     wrongCount: number;
     correctCount: number;
   }[];
+  battle: StudentBattleInfo;
 }
 
 // 내가 등록한 선생님 이메일 목록 조회
@@ -104,7 +120,7 @@ export async function getMyStudents(): Promise<StudentStats[]> {
 
   if (relError || !relations || relations.length === 0) return [];
 
-  const studentIds = relations.map((r) => r.student_id);
+  const studentIds = relations.map((r: { student_id: string }) => r.student_id);
   const emailMap = new Map<string, string>();
   relations.forEach((r: { student_id: string; student_email: string }) => {
     emailMap.set(r.student_id, r.student_email || '');
@@ -141,8 +157,32 @@ export async function getMyStudents(): Promise<StudentStats[]> {
     nicknameMap.set(p.user_id, p.nickname);
   });
 
-  // 4. 모든 학생 ID 기준으로 결과 생성 (user_data 없어도 포함)
-  return studentIds.map((studentId) => {
+  // 4. 배틀 데이터 조회
+  const { data: battleData } = await supabase
+    .from('battle_scores')
+    .select('user_id, grade_tier, score, max_combo, correct_count, total_count, wrong_words, created_at')
+    .in('user_id', studentIds)
+    .order('created_at', { ascending: false });
+
+  interface BattleRow {
+    user_id: string;
+    grade_tier: string;
+    score: number;
+    max_combo: number;
+    correct_count: number;
+    total_count: number;
+    wrong_words: unknown;
+    created_at: string;
+  }
+  const battleMap = new Map<string, BattleRow[]>();
+  for (const row of (battleData || []) as BattleRow[]) {
+    const existing = battleMap.get(row.user_id) || [];
+    existing.push(row);
+    battleMap.set(row.user_id, existing);
+  }
+
+  // 5. 모든 학생 ID 기준으로 결과 생성 (user_data 없어도 포함)
+  return studentIds.map((studentId: string) => {
     const row = userDataMap.get(studentId);
     const gp = row?.game_profile || { xp: 0, level: 1, streak: 0, badges: [] };
     const levelInfo = calcLevel(gp.xp);
@@ -174,6 +214,41 @@ export async function getMyStudents(): Promise<StudentStats[]> {
         correctCount: p.correctCount,
       }));
 
+    // 배틀 데이터 처리
+    const studentBattles = battleMap.get(studentId) || [];
+    const bestScores: Record<GradeTier, number> = { all: 0, high_below: 0, middle_only: 0 };
+    const battleWrongFreq = new Map<string, { korean: string; count: number }>();
+
+    for (const b of studentBattles) {
+      const tier = b.grade_tier as GradeTier;
+      if (b.score > (bestScores[tier] || 0)) bestScores[tier] = b.score;
+      const ww = b.wrong_words as BattleWrongWord[] | null;
+      if (ww) {
+        for (const w of ww) {
+          const key = w.word.toLowerCase();
+          const e = battleWrongFreq.get(key);
+          if (e) e.count++; else battleWrongFreq.set(key, { korean: w.korean, count: 1 });
+        }
+      }
+    }
+
+    const battleInfo: StudentBattleInfo = {
+      totalBattles: studentBattles.length,
+      bestScores,
+      recentBattles: studentBattles.slice(0, 5).map(b => ({
+        grade_tier: b.grade_tier as GradeTier,
+        score: b.score,
+        correct_count: b.correct_count,
+        total_count: b.total_count,
+        wrong_words: (b.wrong_words as BattleWrongWord[] | null) || [],
+        created_at: b.created_at,
+      })),
+      battleWrongWords: Array.from(battleWrongFreq.entries())
+        .map(([word, { korean, count }]) => ({ word, korean, count }))
+        .sort((a, b) => b.count - a.count)
+        .slice(0, 20),
+    };
+
     return {
       user_id: studentId,
       nickname: nicknameMap.get(studentId) || emailMap.get(studentId)?.split('@')[0] || '익명',
@@ -185,6 +260,7 @@ export async function getMyStudents(): Promise<StudentStats[]> {
       sessions: allSessions,
       lastStudyDate,
       wrongWords,
+      battle: battleInfo,
     };
   });
 }

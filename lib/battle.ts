@@ -26,6 +26,12 @@ export interface BattleWord {
   audioUrl: string | null;
 }
 
+export interface BattleWrongWord {
+  word: string;
+  korean: string;
+  userAnswer?: string;
+}
+
 export interface BattleRankEntry {
   user_id: string;
   nickname: string;
@@ -120,7 +126,8 @@ export async function submitBattleScore(
   maxCombo: number,
   correctCount: number,
   totalCount: number,
-  timeSeconds: number
+  timeSeconds: number,
+  wrongWords: BattleWrongWord[] = []
 ): Promise<boolean> {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return false;
@@ -135,9 +142,73 @@ export async function submitBattleScore(
       correct_count: correctCount,
       total_count: totalCount,
       time_seconds: timeSeconds,
+      wrong_words: wrongWords,
     });
 
   return !error;
+}
+
+// 내 배틀 틀린 단어 집계 (빈도순)
+export async function getMyBattleWrongWords(userId: string): Promise<{ word: string; korean: string; count: number }[]> {
+  const { data, error } = await supabase
+    .from('battle_scores')
+    .select('wrong_words')
+    .eq('user_id', userId)
+    .not('wrong_words', 'is', null);
+
+  if (error || !data) return [];
+
+  const freq = new Map<string, { korean: string; count: number }>();
+  for (const row of data) {
+    const ww = row.wrong_words as BattleWrongWord[] | null;
+    if (!ww) continue;
+    for (const w of ww) {
+      const key = w.word.toLowerCase();
+      const existing = freq.get(key);
+      if (existing) {
+        existing.count++;
+      } else {
+        freq.set(key, { korean: w.korean, count: 1 });
+      }
+    }
+  }
+
+  return Array.from(freq.entries())
+    .map(([word, { korean, count }]) => ({ word, korean, count }))
+    .sort((a, b) => b.count - a.count);
+}
+
+// 최근 배틀 이력
+export async function getRecentBattleHistory(userId: string, limit = 5): Promise<{
+  id: string;
+  grade_tier: GradeTier;
+  score: number;
+  max_combo: number;
+  correct_count: number;
+  total_count: number;
+  wrong_words: BattleWrongWord[];
+  time_seconds: number;
+  created_at: string;
+}[]> {
+  const { data, error } = await supabase
+    .from('battle_scores')
+    .select('id, grade_tier, score, max_combo, correct_count, total_count, wrong_words, time_seconds, created_at')
+    .eq('user_id', userId)
+    .order('created_at', { ascending: false })
+    .limit(limit);
+
+  if (error || !data) return [];
+  return data.map((d: Record<string, unknown>) => ({
+    id: d.id as string,
+    grade_tier: d.grade_tier as GradeTier,
+    score: d.score as number,
+    max_combo: d.max_combo as number,
+    correct_count: d.correct_count as number,
+    total_count: d.total_count as number,
+    wrong_words: (d.wrong_words as BattleWrongWord[] | null) || [],
+    time_seconds: d.time_seconds as number,
+    created_at: d.created_at as string,
+  }));
 }
 
 // 내 최고점수
@@ -214,6 +285,8 @@ export interface BattleSaveState {
   questionOffset: number;    // 이전 세션까지 풀었던 총 문제 수
   elapsedSeconds: number;
   savedAt: string;
+  wrongWords: BattleWrongWord[];  // 틀린 단어 목록
+  lives: number;                   // 남은 목숨
 }
 
 const BATTLE_SAVE_KEY = 'vocab_battle_save';

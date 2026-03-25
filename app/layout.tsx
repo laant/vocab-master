@@ -11,10 +11,38 @@ export const viewport: Viewport = {
   maximumScale: 1,
 };
 
+const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://vocabmaster.app";
+
 export const metadata: Metadata = {
-  title: "VocabMaster - 영단어 학습",
-  description: "5단계 영단어 마스터 학습 플랫폼",
+  metadataBase: new URL(siteUrl),
+  title: {
+    default: "VocabMaster - 영단어 배틀 & 학습",
+    template: "%s | VocabMaster",
+  },
+  description: "목숨 3개로 도전하는 영단어 배틀! 중등·고등 필수 영단어를 스피드 퀴즈로 마스터하세요. 랭킹 경쟁, 오답 복습, 간격 반복 학습까지.",
+  keywords: ["영단어", "영어 단어", "영단어 암기", "영단어 퀴즈", "중등 영단어", "고등 영단어", "영어 학습", "단어 배틀", "보카", "VocabMaster"],
   manifest: "/manifest.json",
+  openGraph: {
+    type: "website",
+    locale: "ko_KR",
+    siteName: "VocabMaster",
+    title: "VocabMaster - 영단어 배틀 & 학습",
+    description: "목숨 3개로 도전하는 영단어 배틀! 중등·고등 필수 영단어를 스피드 퀴즈로 마스터하세요.",
+    images: [{ url: "/og-image.png", width: 1200, height: 630, alt: "VocabMaster 영단어 배틀" }],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "VocabMaster - 영단어 배틀 & 학습",
+    description: "목숨 3개로 도전하는 영단어 배틀! 중등·고등 필수 영단어를 스피드 퀴즈로 마스터하세요.",
+    images: ["/og-image.png"],
+  },
+  robots: {
+    index: true,
+    follow: true,
+  },
+  alternates: {
+    canonical: siteUrl,
+  },
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
@@ -26,6 +54,25 @@ export const metadata: Metadata = {
   },
 };
 
+const jsonLd = {
+  "@context": "https://schema.org",
+  "@type": "WebApplication",
+  name: "VocabMaster",
+  description: "목숨 3개로 도전하는 영단어 배틀! 중등·고등 필수 영단어를 스피드 퀴즈로 마스터하세요.",
+  applicationCategory: "EducationalApplication",
+  operatingSystem: "Web",
+  offers: {
+    "@type": "Offer",
+    price: "0",
+    priceCurrency: "KRW",
+  },
+  inLanguage: "ko",
+  audience: {
+    "@type": "EducationalAudience",
+    educationalRole: "student",
+  },
+};
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -34,6 +81,10 @@ export default function RootLayout({
   return (
     <html lang="ko">
       <head>
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        />
         <link
           href="https://fonts.googleapis.com/css2?family=Lexend:wght@300;400;500;600;700&display=swap"
           rel="stylesheet"
@@ -74,9 +125,9 @@ function Header() {
         </a>
         <a
           className="text-sm font-medium text-slate-600 hover:text-primary transition-colors"
-          href="/study/input"
+          href="/battle"
         >
-          새 학습
+          배틀
         </a>
         <a
           className="text-sm font-medium text-slate-600 hover:text-primary transition-colors"
@@ -86,15 +137,9 @@ function Header() {
         </a>
         <a
           className="text-sm font-medium text-slate-600 hover:text-primary transition-colors"
-          href="/leaderboard"
+          href="/battle/rank"
         >
           랭킹
-        </a>
-        <a
-          className="text-sm font-medium text-slate-600 hover:text-primary transition-colors"
-          href="/battle"
-        >
-          배틀
         </a>
         <TeacherNavLink />
         <AdminNavLink />
@@ -137,17 +182,17 @@ function MobileTabBar() {
         <span className="material-symbols-outlined text-2xl">home</span>
         <span className="text-[10px] font-medium">홈</span>
       </a>
-      <a href="/study/input" className="flex flex-col items-center gap-0.5 px-3 py-1 text-slate-500 active:text-primary">
-        <span className="material-symbols-outlined text-2xl">add_circle</span>
-        <span className="text-[10px] font-medium">새 학습</span>
-      </a>
-      <a href="/leaderboard" className="flex flex-col items-center gap-0.5 px-3 py-1 text-slate-500 active:text-primary">
-        <span className="material-symbols-outlined text-2xl">emoji_events</span>
-        <span className="text-[10px] font-medium">랭킹</span>
-      </a>
       <a href="/battle" className="flex flex-col items-center gap-0.5 px-3 py-1 text-slate-500 active:text-primary">
         <span className="material-symbols-outlined text-2xl">swords</span>
         <span className="text-[10px] font-medium">배틀</span>
+      </a>
+      <a href="/wrong-words" className="flex flex-col items-center gap-0.5 px-3 py-1 text-slate-500 active:text-primary">
+        <span className="material-symbols-outlined text-2xl">auto_stories</span>
+        <span className="text-[10px] font-medium">오답노트</span>
+      </a>
+      <a href="/battle/rank" className="flex flex-col items-center gap-0.5 px-3 py-1 text-slate-500 active:text-primary">
+        <span className="material-symbols-outlined text-2xl">emoji_events</span>
+        <span className="text-[10px] font-medium">랭킹</span>
       </a>
       <a href="/profile" className="flex flex-col items-center gap-0.5 px-3 py-1 text-slate-500 active:text-primary">
         <span className="material-symbols-outlined text-2xl">person</span>

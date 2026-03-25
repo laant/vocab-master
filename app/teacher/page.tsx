@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { getMyStudents, StudentStats } from '@/lib/teacher';
+import { GRADE_TIER_LABELS } from '@/lib/battle';
 
 function formatDate(dateStr: string) {
   return new Date(dateStr).toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' });
@@ -70,14 +71,14 @@ export default function TeacherPage() {
           {students.map((student) => {
             const isExpanded = expandedId === student.user_id;
             const lastSession = student.sessions[0];
+            const b = student.battle;
             return (
               <div key={student.user_id} className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-                {/* 접힌 상태: 프로필 + 연속학습일 + 최근학습 */}
+                {/* 접힌 상태 */}
                 <button
                   onClick={() => setExpandedId(isExpanded ? null : student.user_id)}
                   className="w-full flex items-center gap-3 p-4 sm:p-5 text-left hover:bg-slate-50 transition-colors"
                 >
-                  {/* 프로필 */}
                   <div className="flex items-center justify-center w-10 h-10 rounded-full bg-teal-100 text-teal-600 shrink-0">
                     <span className="font-bold text-sm">Lv.{student.level}</span>
                   </div>
@@ -85,6 +86,15 @@ export default function TeacherPage() {
                     <p className="font-bold text-sm truncate">{student.nickname}</p>
                     <p className="text-xs text-slate-400">{student.levelTitle}</p>
                   </div>
+
+                  {/* 배틀 요약 */}
+                  {b.totalBattles > 0 && (
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <span className="material-symbols-outlined text-base text-red-400">swords</span>
+                      <span className="text-xs font-bold text-red-500">{b.totalBattles}회</span>
+                      <span className="text-xs text-slate-400">최고 {Math.max(b.bestScores.all, b.bestScores.high_below, b.bestScores.middle_only)}점</span>
+                    </div>
+                  )}
 
                   {/* 연속 학습일 */}
                   <div className="flex items-center gap-1 shrink-0 ml-auto">
@@ -125,7 +135,7 @@ export default function TeacherPage() {
                   </div>
                 )}
 
-                {/* 펼친 상태: 전체 회차 리스트 + 오답 */}
+                {/* 펼친 상태 */}
                 {isExpanded && (
                   <div className="border-t border-slate-100 px-4 sm:px-5 pb-5">
                     {/* 요약 통계 */}
@@ -148,8 +158,71 @@ export default function TeacherPage() {
                       </div>
                     </div>
 
-                    {/* 전체 회차 리스트 */}
-                    <div className="mt-2">
+                    {/* 배틀 현황 */}
+                    {b.totalBattles > 0 && (
+                      <div className="mt-2">
+                        <h4 className="text-sm font-bold text-slate-700 mb-2 flex items-center gap-1.5">
+                          <span className="material-symbols-outlined text-base text-red-400">swords</span>
+                          배틀 현황
+                        </h4>
+                        <div className="flex gap-3 mb-3 text-sm">
+                          <span className="px-2.5 py-1 bg-slate-50 rounded-lg">총 <span className="font-bold">{b.totalBattles}</span>회</span>
+                          {(['middle_only', 'high_below', 'all'] as const).map(tier => (
+                            b.bestScores[tier] > 0 && (
+                              <span key={tier} className="px-2.5 py-1 bg-slate-50 rounded-lg">
+                                {GRADE_TIER_LABELS[tier]} <span className="font-bold">{b.bestScores[tier]}</span>점
+                              </span>
+                            )
+                          ))}
+                        </div>
+
+                        {/* 최근 배틀 이력 */}
+                        {b.recentBattles.length > 0 && (
+                          <div className="space-y-1.5 mb-3">
+                            {b.recentBattles.map((battle, i) => {
+                              const wrongCount = battle.wrong_words?.length || (battle.total_count - battle.correct_count);
+                              return (
+                                <div key={i} className="flex items-center gap-2 px-3 py-2 rounded-lg bg-orange-50 text-sm">
+                                  <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                                    battle.grade_tier === 'all' ? 'bg-red-100 text-red-600' :
+                                    battle.grade_tier === 'high_below' ? 'bg-violet-100 text-violet-600' :
+                                    'bg-blue-100 text-blue-600'
+                                  }`}>
+                                    {GRADE_TIER_LABELS[battle.grade_tier]}
+                                  </span>
+                                  <span className="text-xs text-slate-400 shrink-0 w-16">
+                                    {formatDate(battle.created_at)}
+                                  </span>
+                                  <span className="font-bold text-sm">{battle.score}점</span>
+                                  <span className="text-xs text-slate-500">{battle.correct_count}정답 / {wrongCount}오답</span>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+
+                        {/* 배틀 틀린 단어 */}
+                        {b.battleWrongWords.length > 0 && (
+                          <div>
+                            <p className="text-xs font-bold text-slate-500 mb-1.5">배틀 틀린 단어 (상위 20개)</p>
+                            <div className="flex flex-wrap gap-2">
+                              {b.battleWrongWords.map((w) => (
+                                <div
+                                  key={w.word}
+                                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-orange-50 border border-orange-200"
+                                >
+                                  <span className="text-xs font-medium text-orange-700">{w.word}</span>
+                                  <span className="text-[10px] text-orange-400">x{w.count}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* 전체 학습 이력 */}
+                    <div className="mt-4">
                       <h4 className="text-sm font-bold text-slate-700 mb-2 flex items-center gap-1.5">
                         <span className="material-symbols-outlined text-base text-primary">history</span>
                         전체 학습 이력
@@ -160,19 +233,14 @@ export default function TeacherPage() {
                         <div className="space-y-1.5">
                           {student.sessions.map((s, i) => (
                             <div key={i} className="flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-50 text-sm">
-                              {/* 완료 여부 */}
                               <span className={`font-bold text-base shrink-0 ${s.completed ? 'text-green-500' : 'text-red-400'}`}>
                                 {s.completed ? 'O' : 'X'}
                               </span>
-                              {/* 날짜 */}
                               <span className="text-xs text-slate-400 shrink-0 w-16">
                                 {formatDate(s.date)}
                               </span>
-                              {/* 세션명 */}
                               <span className="flex-1 truncate text-slate-600 text-xs sm:text-sm">{s.name}</span>
-                              {/* 단어 수 */}
                               <span className="text-xs text-slate-500 shrink-0">{s.wordCount}단어</span>
-                              {/* 정답률 (완료된 것만) */}
                               {s.completed && (
                                 <span className={`text-xs font-bold shrink-0 ${
                                   s.accuracy >= 90 ? 'text-green-500' :
@@ -187,12 +255,12 @@ export default function TeacherPage() {
                       )}
                     </div>
 
-                    {/* 오답 단어 */}
+                    {/* 학습 오답 단어 */}
                     {student.wrongWords.length > 0 && (
                       <div className="mt-4">
                         <h4 className="text-sm font-bold text-slate-700 mb-2 flex items-center gap-1.5">
                           <span className="material-symbols-outlined text-base text-red-400">close</span>
-                          오답 단어
+                          학습 오답 단어
                         </h4>
                         <div className="flex flex-wrap gap-2">
                           {student.wrongWords.map((w) => (

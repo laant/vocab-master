@@ -8,6 +8,7 @@ const STORAGE_KEYS = {
   REVIEW_LEVEL: 'vocab_review_level',
   GAME_PROFILE: 'vocab_game_profile',
   SELECTED_CATEGORY: 'vocab_selected_category',
+  BATTLE_WRONG_WORDS: 'vocab_battle_wrong_words',
 } as const;
 
 // 세션 관련
@@ -88,6 +89,60 @@ export function getSelectedCategory(): string | null {
 export function setSelectedCategory(category: string): void {
   localStorage.setItem(STORAGE_KEYS.SELECTED_CATEGORY, category);
   debouncedSync();
+}
+
+// 배틀 틀린 단어 로컬 캐시
+interface BattleWrongWordLocal {
+  word: string;
+  korean: string;
+  count: number;
+}
+
+export function appendBattleWrongWords(newWords: { word: string; korean: string }[]): void {
+  const existing = getBattleWrongWords();
+  const map = new Map<string, BattleWrongWordLocal>();
+  for (const w of existing) map.set(w.word.toLowerCase(), w);
+  for (const w of newWords) {
+    const key = w.word.toLowerCase();
+    const e = map.get(key);
+    if (e) {
+      e.count++;
+    } else {
+      map.set(key, { word: w.word, korean: w.korean, count: 1 });
+    }
+  }
+  localStorage.setItem(STORAGE_KEYS.BATTLE_WRONG_WORDS, JSON.stringify(Array.from(map.values())));
+  debouncedSync();
+}
+
+export function getBattleWrongWords(): BattleWrongWordLocal[] {
+  if (typeof window === 'undefined') return [];
+  const data = localStorage.getItem(STORAGE_KEYS.BATTLE_WRONG_WORDS);
+  return data ? JSON.parse(data) : [];
+}
+
+// 배틀 틀린 단어 → WordProgress로 변환 (기존 복습 시스템 자동 연동)
+export function mergeBattleWrongWordsIntoProgress(wrongWords: { word: string; korean: string }[]): void {
+  for (const w of wrongWords) {
+    const existing = getWordProgress(w.word);
+    if (existing) {
+      updateWordProgress({
+        ...existing,
+        wrongCount: existing.wrongCount + 1,
+        lastStudied: new Date().toISOString(),
+        mastered: false,
+      });
+    } else {
+      updateWordProgress({
+        word: w.word,
+        correctCount: 0,
+        wrongCount: 1,
+        wrongAtSteps: [],
+        lastStudied: new Date().toISOString(),
+        mastered: false,
+      });
+    }
+  }
 }
 
 // 유틸리티

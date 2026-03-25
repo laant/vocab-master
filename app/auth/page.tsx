@@ -42,7 +42,7 @@ function AuthContent() {
         if (pendingBattle) {
           try {
             const b = JSON.parse(pendingBattle);
-            await submitBattleScore(b.tier, b.score, b.maxCombo, b.correctCount, b.totalCount, b.timeSeconds);
+            await submitBattleScore(b.tier, b.score, b.maxCombo, b.correctCount, b.totalCount, b.timeSeconds, b.wrongWords || []);
           } catch { /* ignore */ }
           sessionStorage.removeItem('vocab_battle_pending');
         }

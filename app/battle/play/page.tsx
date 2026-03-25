@@ -6,15 +6,17 @@ import { supabase } from "@/lib/supabase";
 import {
   fetchWordsForGrade, submitBattleScore, getMyBestScore,
   saveBattleState, loadBattleSave, clearBattleSave,
-  BattleWord, GradeTier, GRADE_TIER_LABELS,
+  BattleWord, BattleWrongWord, GradeTier, GRADE_TIER_LABELS,
   GRADE_ORDER, GRADE_LABELS,
 } from "@/lib/battle";
 import { Grade } from "@/lib/admin";
+import { appendBattleWrongWords, mergeBattleWrongWordsIntoProgress } from "@/lib/storage";
 import { playCorrectSound, playWrongSound } from "@/lib/sound";
 
 const TIME_LIMIT = 10;
 const COMBO_THRESHOLD = 5;
 const CHECKPOINT_INTERVAL = 100;
+const MAX_LIVES = 3;
 
 function BattlePlayContent() {
   const router = useRouter();
@@ -39,6 +41,10 @@ function BattlePlayContent() {
   const [countdownNum, setCountdownNum] = useState(3);
   const [comboDisplay, setComboDisplay] = useState(0);
   const [prevElapsed, setPrevElapsed] = useState(0);
+
+  // 3목숨 시스템
+  const [lives, setLives] = useState(MAX_LIVES);
+  const [wrongWords, setWrongWords] = useState<BattleWrongWord[]>([]);
 
   // 등급별 배치 로딩 상태
   const [gradeIndex, setGradeIndex] = useState(0);
@@ -74,6 +80,8 @@ function BattlePlayContent() {
           setComboDisplay(saved.combo);
           setGradeIndex(saved.gradeIndex);
           setQuestionOffset(saved.questionOffset);
+          setLives(saved.lives ?? MAX_LIVES);
+          setWrongWords(saved.wrongWords ?? []);
           usedWordsRef.current = new Set(saved.usedWords);
           clearBattleSave();
           setPhase("countdown");
@@ -149,7 +157,13 @@ function BattlePlayContent() {
     return prevElapsed + Math.round((Date.now() - startTime) / 1000);
   }, [prevElapsed, startTime]);
 
-  const finishBattle = useCallback((cleared = false) => {
+  const finishBattle = useCallback((
+    cleared = false,
+    finalWrongWords?: BattleWrongWord[],
+    finalCorrectCount?: number,
+    finalScore?: number,
+    finalMaxCombo?: number
+  ) => {
     if (timerRef.current) clearInterval(timerRef.current);
     const elapsed = getElapsed();
     setTotalTime(elapsed);
@@ -157,17 +171,58 @@ function BattlePlayContent() {
     setPhase("result");
     clearBattleSave();
 
+    const ww = finalWrongWords ?? wrongWords;
+    const cc = finalCorrectCount ?? correctCount;
+    const sc = finalScore ?? score;
+    const mc = finalMaxCombo ?? maxCombo;
     const total = questionOffset + currentIndex + (cleared ? 0 : 1);
-    if (userId && score > 0) {
-      submitBattleScore(tier, score, maxCombo, correctCount, total, elapsed);
-    }
-  }, [getElapsed, score, maxCombo, correctCount, currentIndex, questionOffset, userId, tier]);
 
-  const handleTimeout = useCallback(() => {
+    // 로컬 저장 + WordProgress 변환
+    if (ww.length > 0) {
+      appendBattleWrongWords(ww);
+      mergeBattleWrongWordsIntoProgress(ww);
+    }
+
+    if (userId && sc > 0) {
+      submitBattleScore(tier, sc, mc, cc, total, elapsed, ww);
+    }
+  }, [getElapsed, score, maxCombo, correctCount, currentIndex, questionOffset, userId, tier, wrongWords]);
+
+  const handleWrongAnswer = useCallback((userAnswer?: string) => {
     playWrongSound();
     setAnswerState("wrong");
-    setTimeout(() => finishBattle(), 1500);
-  }, [finishBattle]);
+
+    const currentWord = words[currentIndex];
+    const newWrongWord: BattleWrongWord = {
+      word: currentWord.word,
+      korean: currentWord.korean,
+      userAnswer,
+    };
+
+    setWrongWords(prev => {
+      const updated = [...prev, newWrongWord];
+
+      setLives(prevLives => {
+        const newLives = prevLives - 1;
+        if (newLives <= 0) {
+          // 목숨 소진 → 게임 종료
+          setTimeout(() => finishBattle(false, updated), 1500);
+        } else {
+          // 목숨 남아있음 → 콤보 리셋, 다음 문제
+          setCombo(0);
+          setComboDisplay(0);
+          setTimeout(() => moveNext(), 1500);
+        }
+        return newLives;
+      });
+
+      return updated;
+    });
+  }, [words, currentIndex, finishBattle]);
+
+  const handleTimeout = useCallback(() => {
+    handleWrongAnswer('시간초과');
+  }, [handleWrongAnswer]);
 
   const moveNext = useCallback(() => {
     const nextIndex = currentIndex + 1;
@@ -236,6 +291,8 @@ function BattlePlayContent() {
       questionOffset: globalQ,
       elapsedSeconds: elapsed,
       savedAt: new Date().toISOString(),
+      wrongWords,
+      lives,
     });
     router.push("/battle");
   };
@@ -250,9 +307,7 @@ function BattlePlayContent() {
     const isCorrect = input.trim().toLowerCase() === currentWord.word.toLowerCase();
 
     if (!isCorrect || elapsed > TIME_LIMIT) {
-      playWrongSound();
-      setAnswerState("wrong");
-      setTimeout(() => finishBattle(), 1500);
+      handleWrongAnswer(input.trim() || undefined);
       return;
     }
 
@@ -290,6 +345,8 @@ function BattlePlayContent() {
     setPrevElapsed(0);
     setQuestionOffset(0);
     setAllCleared(false);
+    setLives(MAX_LIVES);
+    setWrongWords([]);
     usedWordsRef.current = new Set();
 
     let gi = 0;
@@ -304,6 +361,20 @@ function BattlePlayContent() {
     setGradeIndex(gi);
     setPhase("countdown");
   };
+
+  // 하트 렌더링
+  const renderLives = () => (
+    <div className="flex items-center gap-0.5">
+      {Array.from({ length: MAX_LIVES }, (_, i) => (
+        <span
+          key={i}
+          className={`text-lg ${i < lives ? "text-red-500" : "text-slate-300"}`}
+        >
+          {i < lives ? "\u2665" : "\u2661"}
+        </span>
+      ))}
+    </div>
+  );
 
   // 로딩
   if (phase === "loading") {
@@ -373,18 +444,24 @@ function BattlePlayContent() {
             </p>
           )}
 
-          <div className="grid grid-cols-3 gap-4 mb-8">
+          <div className="grid grid-cols-4 gap-3 mb-8">
             <div className="bg-slate-50 rounded-xl p-3">
               <p className="text-2xl font-bold text-primary">{score}<span className="text-sm text-slate-400">점</span></p>
               <p className="text-[10px] text-slate-500">현재 점수</p>
             </div>
             <div className="bg-slate-50 rounded-xl p-3">
               <p className="text-2xl font-bold">{correctCount}<span className="text-sm text-slate-400">개</span></p>
-              <p className="text-[10px] text-slate-500">연속 정답</p>
+              <p className="text-[10px] text-slate-500">정답</p>
             </div>
             <div className="bg-slate-50 rounded-xl p-3">
               <p className="text-2xl font-bold">{combo > 0 ? `${combo}x` : "-"}</p>
               <p className="text-[10px] text-slate-500">현재 콤보</p>
+            </div>
+            <div className="bg-slate-50 rounded-xl p-3">
+              <div className="text-2xl font-bold">{renderLives()}</div>
+              <p className="text-[10px] text-slate-500">
+                {wrongWords.length > 0 ? `오답 ${wrongWords.length}개` : "오답 없음"}
+              </p>
             </div>
           </div>
 
@@ -464,10 +541,14 @@ function BattlePlayContent() {
 
           <div className="text-5xl font-black text-primary mb-6">{score}<span className="text-lg text-slate-400">점</span></div>
 
-          <div className="grid grid-cols-3 gap-4 mb-8">
+          <div className="grid grid-cols-4 gap-3 mb-6">
             <div className="bg-slate-50 rounded-xl p-3">
               <p className="text-2xl font-bold">{correctCount}<span className="text-sm text-slate-400">개</span></p>
-              <p className="text-[10px] text-slate-500">연속 정답</p>
+              <p className="text-[10px] text-slate-500">정답</p>
+            </div>
+            <div className="bg-slate-50 rounded-xl p-3">
+              <p className="text-2xl font-bold text-red-500">{wrongWords.length}<span className="text-sm text-slate-400">개</span></p>
+              <p className="text-[10px] text-slate-500">오답</p>
             </div>
             <div className="bg-slate-50 rounded-xl p-3">
               <p className="text-2xl font-bold">{maxCombo}</p>
@@ -478,6 +559,38 @@ function BattlePlayContent() {
               <p className="text-[10px] text-slate-500">소요 시간</p>
             </div>
           </div>
+
+          {/* 틀린 단어 목록 */}
+          {wrongWords.length > 0 && (
+            <div className="bg-red-50 border border-red-200 rounded-xl p-4 mb-4 text-left">
+              <h3 className="text-sm font-bold text-red-700 mb-2 flex items-center gap-1.5">
+                <span className="material-symbols-outlined text-base">close</span>
+                틀린 단어 ({wrongWords.length}개)
+              </h3>
+              <div className="space-y-1.5">
+                {wrongWords.map((w, i) => (
+                  <div key={i} className="flex items-center justify-between text-sm">
+                    <div>
+                      <span className="font-bold text-red-800">{w.word}</span>
+                      <span className="text-red-500 ml-2">{w.korean}</span>
+                    </div>
+                    {w.userAnswer && w.userAnswer !== '시간초과' && (
+                      <span className="text-xs text-red-400 line-through">{w.userAnswer}</span>
+                    )}
+                    {w.userAnswer === '시간초과' && (
+                      <span className="text-xs text-orange-400">시간초과</span>
+                    )}
+                  </div>
+                ))}
+              </div>
+              <button
+                onClick={() => router.push("/wrong-words")}
+                className="w-full mt-3 py-2 bg-red-600 text-white rounded-lg text-sm font-bold hover:bg-red-700 transition-colors"
+              >
+                틀린 단어로 학습하기
+              </button>
+            </div>
+          )}
 
           {/* 비로그인 유저: 기록 저장 유도 */}
           {!userId && score > 0 && (
@@ -490,6 +603,7 @@ function BattlePlayContent() {
                     tier, score, maxCombo, correctCount,
                     totalCount: globalQ + (allCleared ? 0 : 1),
                     timeSeconds: totalTime,
+                    wrongWords,
                   }));
                   router.push("/auth?redirect=/battle");
                 }}
@@ -531,6 +645,7 @@ function BattlePlayContent() {
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-3">
           <span className="text-sm font-bold text-slate-500">#{displayNum}</span>
+          {renderLives()}
           {comboDisplay > 0 && (
             <span className="px-2 py-0.5 bg-orange-100 text-orange-600 rounded-full text-xs font-bold animate-pulse">
               {comboDisplay}x COMBO
