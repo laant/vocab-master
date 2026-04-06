@@ -11,7 +11,7 @@ export const viewport: Viewport = {
   maximumScale: 1,
 };
 
-const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://vocabmaster.app";
+const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://voca-battle.sombyu.com";
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
