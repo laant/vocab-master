@@ -25,7 +25,7 @@ function BattlePlayContent() {
   const isResume = searchParams.get("resume") === "1";
 
   const [userId, setUserId] = useState<string | null>(null);
-  const [phase, setPhase] = useState<"loading" | "countdown" | "playing" | "checkpoint" | "result">("loading");
+  const [phase, setPhase] = useState<"loading" | "countdown" | "playing" | "checkpoint" | "result" | "error">("loading");
   const [words, setWords] = useState<BattleWord[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [input, setInput] = useState("");
@@ -97,13 +97,18 @@ function BattlePlayContent() {
         if (gradeWords.length === 0) gi++;
       }
 
+      if (gradeWords.length === 0) {
+        setPhase("error");
+        return;
+      }
+
       gradeWords.forEach(w => usedWordsRef.current.add(w.word.toLowerCase()));
       setWords(gradeWords);
       setGradeIndex(gi);
       setPhase("countdown");
     }
 
-    init();
+    init().catch(() => setPhase("error"));
   }, [router, tier, isResume]);
 
   // 카운트다운
@@ -386,6 +391,31 @@ function BattlePlayContent() {
     );
   }
 
+  // 에러
+  if (phase === "error") {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4 px-4">
+        <span className="material-symbols-outlined text-5xl text-red-400">error</span>
+        <p className="text-slate-700 font-bold text-lg">단어를 불러올 수 없습니다</p>
+        <p className="text-slate-500 text-sm text-center">네트워크 연결을 확인하고 다시 시도해 주세요.</p>
+        <div className="flex gap-3 mt-2">
+          <button
+            onClick={() => window.location.reload()}
+            className="px-6 py-3 bg-primary text-white rounded-xl font-bold hover:bg-blue-600 transition-colors"
+          >
+            다시 시도
+          </button>
+          <button
+            onClick={() => router.push("/")}
+            className="px-6 py-3 bg-slate-100 text-slate-700 rounded-xl font-bold hover:bg-slate-200 transition-colors"
+          >
+            홈으로
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   // 카운트다운
   if (phase === "countdown") {
     return (
@@ -635,6 +665,10 @@ function BattlePlayContent() {
 
   // 플레이
   const currentWord = words[currentIndex];
+  if (!currentWord) {
+    setPhase("error");
+    return null;
+  }
   const timerPercent = (timeLeft / TIME_LIMIT) * 100;
   const timerColor = timeLeft > 5 ? "bg-green-500" : timeLeft > 3 ? "bg-yellow-500" : "bg-red-500";
   const displayNum = questionOffset + currentIndex + 1;
